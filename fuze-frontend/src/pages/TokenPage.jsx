@@ -28,7 +28,6 @@ export default function TokenPage() {
 
   const [token, setToken] = useState(null);
   const [poolStats, setPoolStats] = useState(null);
-
   const [wallet, setWallet] = useState("");
   const [tokenBalance, setTokenBalance] = useState("0");
 
@@ -43,10 +42,7 @@ export default function TokenPage() {
   const chartData = useMemo(() => {
     return [...trades]
       .reverse()
-      .filter(
-        (trade) =>
-          trade.price_after !== null && trade.price_after !== undefined
-      )
+      .filter((trade) => trade.price_after !== null && trade.price_after !== undefined)
       .map((trade, index) => ({
         trade: index + 1,
         price: Number(trade.price_after)
@@ -74,9 +70,10 @@ export default function TokenPage() {
         .select("*")
         .eq("pool_address", poolAddress)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(60);
 
       if (error) throw error;
+
       setTrades(data || []);
     } catch (err) {
       console.error(err);
@@ -150,9 +147,9 @@ export default function TokenPage() {
       const sold = await pool.tokensSold();
       const ignited = await pool.ignited();
 
+      const priceNumber = Number(ethers.formatUnits(price, 18));
       const reserveNumber = Number(ethers.formatEther(reserve));
       const soldNumber = Number(ethers.formatUnits(sold, 18));
-      const priceNumber = Number(ethers.formatUnits(price, 18));
 
       const progress = Math.min(
         (reserveNumber / IGNITION_TARGET_MON) * 100,
@@ -208,6 +205,7 @@ export default function TokenPage() {
       setTokenBalance(ethers.formatUnits(balance, 18));
     } catch (err) {
       console.error(err);
+      setTokenBalance("0");
     }
   }
 
@@ -354,75 +352,101 @@ export default function TokenPage() {
             </div>
           </div>
 
-          <button onClick={connectWallet} style={walletButtonStyle}>
-            {wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : "Connect Wallet"}
-          </button>
+          <div style={navActionsStyle}>
+            <button onClick={() => navigate("/")} style={navButtonStyle}>
+              Terminal
+            </button>
+
+            <button onClick={connectWallet} style={createButtonStyle}>
+              {wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : "Connect"}
+            </button>
+          </div>
         </nav>
 
         <button onClick={() => navigate("/")} style={backButtonStyle}>
-          ← Back
+          ← Back to launches
         </button>
 
-        <section style={heroStyle}>
-          <div style={leftStyle}>
-            <div style={topHeaderStyle}>
+        <section style={layoutStyle}>
+          <div style={mainColumnStyle}>
+            <div style={tokenHeroStyle}>
+              <div style={tokenImageBoxStyle}>
+                {token.imageUrl ? (
+                  <img src={token.imageUrl} alt={token.symbol} style={tokenImageStyle} />
+                ) : (
+                  <span style={fallbackStyle}>{token.symbol?.slice(0, 2)}</span>
+                )}
+              </div>
+
               <div style={tokenInfoStyle}>
-                <div style={tokenImageWrapStyle}>
-                  {token.imageUrl ? (
-                    <img src={token.imageUrl} alt={token.symbol} style={tokenImageStyle} />
-                  ) : (
-                    <span style={fallbackStyle}>{token.symbol?.slice(0, 2)}</span>
-                  )}
+                <div style={badgeRowStyle}>
+                  <span style={symbolBadgeStyle}>{token.symbol}</span>
+
+                  <span style={statusBadgeStyle}>
+                    {poolStats?.ignited ? "IGNITED" : "BONDING"}
+                  </span>
                 </div>
 
-                <div>
-                  <div style={statusBadgeStyle}>
-                    {poolStats?.ignited ? "IGNITED 🔥" : "LIVE ⚡"}
-                  </div>
+                <h1 style={titleStyle}>{token.name}</h1>
 
-                  <h1 style={tokenTitleStyle}>{token.symbol}</h1>
-                  <p style={tokenNameStyle}>{token.name}</p>
+                {token.description && (
+                  <p style={descStyle}>{token.description}</p>
+                )}
+
+                <div style={linkRowStyle}>
+                  {token.website && (
+                    <a href={token.website} target="_blank" rel="noreferrer" style={linkButtonStyle}>
+                      Website
+                    </a>
+                  )}
+
+                  {token.telegram && (
+                    <a href={token.telegram} target="_blank" rel="noreferrer" style={linkButtonStyle}>
+                      Telegram
+                    </a>
+                  )}
+
+                  {token.twitter && (
+                    <a href={token.twitter} target="_blank" rel="noreferrer" style={linkButtonStyle}>
+                      X
+                    </a>
+                  )}
                 </div>
               </div>
 
-              <div style={priceBlockStyle}>
-                <div style={priceLabelStyle}>PRICE</div>
-
-                <div style={priceValueStyle}>
-                  {shortNum(poolStats?.price)} MON
-                </div>
-
-                <div style={mcapStyle}>
-                  MCAP {shortNum(poolStats?.marketCap)} MON
-                </div>
+              <div style={priceBoxStyle}>
+                <span>PRICE</span>
+                <strong>{shortNum(poolStats?.price)} MON</strong>
+                <small>MC {shortNum(poolStats?.marketCap)} MON</small>
               </div>
             </div>
 
-            {token.description && (
-              <p style={descriptionStyle}>{token.description}</p>
-            )}
+            <div style={statsGridStyle}>
+              <Stat label="Market Cap" value={`${shortNum(poolStats?.marketCap)} MON`} />
+              <Stat label="Reserve" value={`${shortNum(poolStats?.reserve)} MON`} />
+              <Stat label="Tokens Sold" value={shortNum(poolStats?.sold)} />
+              <Stat label="Trades" value={trades.length} />
+            </div>
 
-            <div style={progressWrapStyle}>
-              <div style={progressTopStyle}>
+            <div style={bondingPanelStyle}>
+              <div style={bondingTopStyle}>
                 <span>Bonding Progress</span>
-                <strong>{poolStats?.progress.toFixed(2)}%</strong>
+                <strong>{poolStats?.progress?.toFixed(2) || "0.00"}%</strong>
               </div>
 
               <div style={progressOuterStyle}>
                 <div
                   style={{
                     ...progressInnerStyle,
-                    width: `${poolStats?.progress}%`
+                    width: `${poolStats?.progress || 0}%`
                   }}
                 />
               </div>
-            </div>
 
-            <div style={statsGridStyle}>
-              <Stat label="Reserve" value={`${shortNum(poolStats?.reserve)} MON`} />
-              <Stat label="Tokens Sold" value={shortNum(poolStats?.sold)} />
-              <Stat label="Ignition" value={`${IGNITION_TARGET_MON} MON`} />
-              <Stat label="Trades" value={trades.length} />
+              <div style={bondingBottomStyle}>
+                <span>0 MON</span>
+                <span>{IGNITION_TARGET_MON} MON ignition</span>
+              </div>
             </div>
 
             <div style={addressPanelStyle}>
@@ -432,77 +456,87 @@ export default function TokenPage() {
             </div>
 
             <div style={chartPanelStyle}>
-              <div style={chartHeaderStyle}>
-                <h2 style={chartTitleStyle}>Live Price Chart</h2>
-                <div style={liveBadgeStyle}>LIVE</div>
+              <div style={panelHeaderStyle}>
+                <h2>Price Chart</h2>
+                <span>LIVE</span>
               </div>
 
-              <div style={{ width: "100%", height: 360 }}>
-                <ResponsiveContainer>
-                  <AreaChart data={chartData}>
-                    <XAxis dataKey="trade" stroke="#8f8a9f" />
-                    <YAxis stroke="#8f8a9f" domain={["auto", "auto"]} />
+              {chartData.length === 0 ? (
+                <p style={emptyTextStyle}>No chart data yet.</p>
+              ) : (
+                <div style={{ width: "100%", height: 390 }}>
+                  <ResponsiveContainer>
+                    <AreaChart data={chartData}>
+                      <XAxis dataKey="trade" stroke="#777" />
+                      <YAxis stroke="#777" domain={["auto", "auto"]} />
 
-                    <Tooltip
-                      formatter={(value) => [`${value} MON`, "Price"]}
-                      contentStyle={{
-                        background: "#111118",
-                        border: "1px solid rgba(192,132,252,0.25)",
-                        borderRadius: "12px",
-                        color: "white"
-                      }}
-                    />
+                      <Tooltip
+                        formatter={(value) => [`${value} MON`, "Price"]}
+                        contentStyle={{
+                          background: "#08080a",
+                          border: "1px solid rgba(192,132,252,0.25)",
+                          borderRadius: "10px",
+                          color: "white"
+                        }}
+                      />
 
-                    <Area
-                      type="monotone"
-                      dataKey="price"
-                      stroke="#c084fc"
-                      fill="rgba(192,132,252,0.22)"
-                      strokeWidth={3}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+                      <Area
+                        type="monotone"
+                        dataKey="price"
+                        stroke="#8b5cf6"
+                        fill="rgba(139,92,246,0.18)"
+                        strokeWidth={3}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
 
             <div style={tradesPanelStyle}>
-              <div style={chartHeaderStyle}>
-                <h2 style={chartTitleStyle}>Recent Trades</h2>
-                <div style={liveBadgeStyle}>{trades.length}</div>
+              <div style={panelHeaderStyle}>
+                <h2>Recent Trades</h2>
+                <span>{trades.length}</span>
               </div>
 
               {trades.length === 0 && (
-                <p style={{ color: "#8f8a9f" }}>No trades yet.</p>
+                <p style={emptyTextStyle}>No trades yet.</p>
               )}
 
               {trades.map((trade) => (
                 <div key={trade.id} style={tradeRowStyle}>
-                  <div>
+                  <div style={tradeLeftStyle}>
                     <div
                       style={{
-                        ...tradeTypeStyle,
-                        color: trade.trade_type === "buy" ? "#86efac" : "#fca5a5"
+                        ...tradeDotStyle,
+                        background: trade.trade_type === "buy" ? "#22c55e" : "#ef4444"
                       }}
-                    >
-                      {trade.trade_type.toUpperCase()}
-                    </div>
+                    />
 
-                    <div style={walletTextStyle}>
-                      {trade.wallet_address.slice(0, 6)}...
-                      {trade.wallet_address.slice(-4)}
+                    <div>
+                      <strong
+                        style={{
+                          color: trade.trade_type === "buy" ? "#22c55e" : "#ef4444"
+                        }}
+                      >
+                        {trade.trade_type === "buy" ? "BUY" : "SELL"}
+                      </strong>
+
+                      <p>
+                        {trade.wallet_address.slice(0, 6)}...
+                        {trade.wallet_address.slice(-4)}
+                      </p>
                     </div>
                   </div>
 
-                  <div style={{ textAlign: "right" }}>
-                    <div style={tradeAmountStyle}>
+                  <div style={tradeRightStyle}>
+                    <strong>
                       {trade.trade_type === "buy"
-                        ? `${trade.mon_amount} MON`
-                        : `${trade.token_amount} ${token.symbol}`}
-                    </div>
+                        ? `${shortNum(trade.mon_amount)} MON`
+                        : `${shortNum(trade.token_amount)} ${token.symbol}`}
+                    </strong>
 
-                    <div style={walletTextStyle}>
-                      {shortNum(trade.price_after)} MON
-                    </div>
+                    <p>{shortNum(trade.price_after)} MON</p>
                   </div>
                 </div>
               ))}
@@ -510,29 +544,30 @@ export default function TokenPage() {
           </div>
 
           <aside style={tradePanelStyle}>
-            <div style={tradeTitleWrapStyle}>
-              <h2 style={tradeTitleStyle}>Trade {token.symbol}</h2>
-              <p style={tradeSubStyle}>Buy and sell instantly.</p>
-            </div>
+            <h2 style={tradeTitleStyle}>Trade {token.symbol}</h2>
 
-            <div style={balanceBoxStyle}>
+            <button onClick={connectWallet} style={walletButtonStyle}>
+              {wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : "Connect Wallet"}
+            </button>
+
+            <div style={balanceStyle}>
               <span>Your Balance</span>
               <strong>
                 {Number(tokenBalance).toLocaleString()} {token.symbol}
               </strong>
             </div>
 
-            <div style={tradeBoxStyle}>
-              <div style={tradeLabelStyle}>Buy with MON</div>
+            <div style={boxStyle}>
+              <div style={labelStyle}>Buy with MON</div>
 
-              <div style={presetWrapStyle}>
+              <div style={presetGridStyle}>
                 {["0.1", "0.5", "1", "2"].map((amount) => (
                   <button
                     key={amount}
                     onClick={() => setBuyAmount(amount)}
                     style={presetButtonStyle}
                   >
-                    {amount} MON
+                    {amount}
                   </button>
                 ))}
               </div>
@@ -549,15 +584,15 @@ export default function TokenPage() {
                 disabled={buyLoading || poolStats?.ignited}
                 style={{
                   ...buyButtonStyle,
-                  opacity: buyLoading || poolStats?.ignited ? 0.5 : 1
+                  opacity: buyLoading || poolStats?.ignited ? 0.55 : 1
                 }}
               >
-                {buyLoading ? "Buying..." : "Buy"}
+                {poolStats?.ignited ? "Bonding Finished" : buyLoading ? "Buying..." : "Buy"}
               </button>
             </div>
 
-            <div style={tradeBoxStyle}>
-              <div style={tradeLabelStyle}>Sell Tokens</div>
+            <div style={boxStyle}>
+              <div style={labelStyle}>Sell tokens</div>
 
               <input
                 value={sellAmount}
@@ -571,31 +606,11 @@ export default function TokenPage() {
                 disabled={sellLoading || poolStats?.ignited}
                 style={{
                   ...sellButtonStyle,
-                  opacity: sellLoading || poolStats?.ignited ? 0.5 : 1
+                  opacity: sellLoading || poolStats?.ignited ? 0.55 : 1
                 }}
               >
-                {sellLoading ? "Selling..." : "Sell"}
+                {poolStats?.ignited ? "Bonding Finished" : sellLoading ? "Selling..." : "Sell"}
               </button>
-            </div>
-
-            <div style={linksWrapStyle}>
-              {token.website && (
-                <a href={token.website} target="_blank" rel="noreferrer" style={linkButtonStyle}>
-                  Website
-                </a>
-              )}
-
-              {token.telegram && (
-                <a href={token.telegram} target="_blank" rel="noreferrer" style={linkButtonStyle}>
-                  Telegram
-                </a>
-              )}
-
-              {token.twitter && (
-                <a href={token.twitter} target="_blank" rel="noreferrer" style={linkButtonStyle}>
-                  Twitter
-                </a>
-              )}
             </div>
           </aside>
         </section>
@@ -628,11 +643,11 @@ function Address({ label, value }) {
   return (
     <div style={addressRowStyle}>
       <div>
-        <span style={addressLabelStyle}>{label}</span>
-        <div style={addressFullStyle}>{value}</div>
+        <span>{label}</span>
+        <strong>{value}</strong>
       </div>
 
-      <button onClick={copyAddress} style={addressButtonStyle}>
+      <button onClick={copyAddress} style={copyButtonStyle}>
         Copy
       </button>
     </div>
@@ -646,8 +661,8 @@ function shortNum(value) {
 
   if (!Number.isFinite(n)) return value;
 
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   if (n < 0.000001 && n > 0) return n.toExponential(2);
 
   return n.toLocaleString(undefined, {
@@ -658,133 +673,147 @@ function shortNum(value) {
 const pageStyle = {
   minHeight: "100vh",
   background:
-    "radial-gradient(circle at top left, #2b0b4f 0%, #08070d 35%, #030305 100%)",
-  padding: "28px",
+    "radial-gradient(circle at top left, #170627 0%, #050507 34%, #030304 100%)",
+  padding: "22px 30px 60px",
   color: "white",
   position: "relative",
-  overflow: "hidden"
+  overflow: "hidden",
+  fontFamily: "Inter, Arial, sans-serif"
 };
 
 const bgGlowOne = {
   position: "fixed",
-  width: "520px",
-  height: "520px",
-  top: "-160px",
-  right: "-100px",
-  background: "rgba(168,85,247,0.28)",
-  filter: "blur(120px)"
+  width: "620px",
+  height: "620px",
+  top: "-220px",
+  right: "-160px",
+  background: "rgba(168,85,247,0.2)",
+  filter: "blur(130px)",
+  pointerEvents: "none"
 };
 
 const bgGlowTwo = {
   position: "fixed",
-  width: "420px",
-  height: "420px",
-  bottom: "-140px",
-  left: "-120px",
-  background: "rgba(124,58,237,0.22)",
-  filter: "blur(120px)"
+  width: "520px",
+  height: "520px",
+  bottom: "-180px",
+  left: "-160px",
+  background: "rgba(124,58,237,0.16)",
+  filter: "blur(130px)",
+  pointerEvents: "none"
 };
 
 const containerStyle = {
-  maxWidth: "1380px",
+  maxWidth: "1840px",
   margin: "0 auto",
   position: "relative",
   zIndex: 2
 };
 
 const navStyle = {
-  height: "76px",
+  height: "66px",
   display: "flex",
-  justifyContent: "space-between",
   alignItems: "center",
-  padding: "10px 18px",
-  borderRadius: "24px",
-  background: "rgba(10,10,18,0.72)",
-  border: "1px solid rgba(192,132,252,0.18)",
-  backdropFilter: "blur(18px)"
+  justifyContent: "space-between",
+  marginBottom: "18px"
 };
 
 const brandStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "14px",
+  gap: "12px",
   cursor: "pointer"
 };
 
 const logoStyle = {
-  width: "52px",
-  height: "52px",
-  borderRadius: "16px",
+  width: "46px",
+  height: "46px",
+  borderRadius: "14px",
   objectFit: "cover"
 };
 
 const brandNameStyle = {
-  fontSize: "24px",
-  fontWeight: "900"
+  fontSize: "26px",
+  fontWeight: "1000",
+  letterSpacing: "1px"
 };
 
 const brandSubStyle = {
+  color: "#a7a1b8",
   fontSize: "12px",
-  color: "#c4b5fd"
+  marginTop: "1px"
 };
 
-const walletButtonStyle = {
-  background: "linear-gradient(135deg, #7c3aed, #c084fc)",
-  border: "none",
-  color: "white",
-  padding: "13px 18px",
+const navActionsStyle = {
+  display: "flex",
+  gap: "10px",
+  alignItems: "center"
+};
+
+const navButtonStyle = {
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  color: "#d8d4e5",
+  padding: "11px 15px",
   borderRadius: "14px",
   cursor: "pointer",
-  fontWeight: "900"
+  fontWeight: "800"
+};
+
+const createButtonStyle = {
+  background: "linear-gradient(135deg,#7c3aed,#c084fc)",
+  border: "none",
+  color: "white",
+  padding: "12px 17px",
+  borderRadius: "14px",
+  cursor: "pointer",
+  fontWeight: "950"
 };
 
 const backButtonStyle = {
-  marginTop: "22px",
-  marginBottom: "20px",
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "#ddd6fe",
-  padding: "12px 16px",
+  marginBottom: "18px",
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  color: "#d8d4e5",
+  padding: "11px 15px",
   borderRadius: "14px",
-  cursor: "pointer"
+  cursor: "pointer",
+  fontWeight: "800"
 };
 
-const heroStyle = {
+const layoutStyle = {
   display: "grid",
   gridTemplateColumns: "1fr 390px",
-  gap: "24px"
+  gap: "22px",
+  alignItems: "start"
 };
 
-const leftStyle = {
+const mainColumnStyle = {
   display: "flex",
   flexDirection: "column",
-  gap: "22px"
+  gap: "18px"
 };
 
-const topHeaderStyle = {
-  background:
-    "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))",
-  border: "1px solid rgba(192,132,252,0.18)",
-  borderRadius: "30px",
-  padding: "28px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "20px"
+const tokenHeroStyle = {
+  background: "#050505",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "18px",
+  padding: "16px",
+  display: "grid",
+  gridTemplateColumns: "150px 1fr auto",
+  gap: "18px",
+  alignItems: "center"
 };
 
-const tokenInfoStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "22px"
-};
-
-const tokenImageWrapStyle = {
-  width: "120px",
-  height: "120px",
-  borderRadius: "28px",
+const tokenImageBoxStyle = {
+  width: "150px",
+  height: "150px",
+  borderRadius: "14px",
   overflow: "hidden",
-  background: "rgba(168,85,247,0.16)"
+  background: "#151515",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center"
 };
 
 const tokenImageStyle = {
@@ -794,81 +823,129 @@ const tokenImageStyle = {
 };
 
 const fallbackStyle = {
+  fontSize: "42px",
+  fontWeight: "1000",
+  color: "#e9d5ff"
+};
+
+const tokenInfoStyle = {
+  minWidth: 0
+};
+
+const badgeRowStyle = {
   display: "flex",
+  gap: "8px",
   alignItems: "center",
-  justifyContent: "center",
-  width: "100%",
-  height: "100%",
-  fontSize: "34px",
-  fontWeight: "900"
+  marginBottom: "10px"
+};
+
+const symbolBadgeStyle = {
+  display: "inline-block",
+  background: "rgba(148,163,184,0.38)",
+  color: "#eef2ff",
+  borderRadius: "5px",
+  padding: "3px 7px",
+  fontSize: "13px",
+  fontWeight: "950"
 };
 
 const statusBadgeStyle = {
   display: "inline-block",
-  marginBottom: "12px",
-  padding: "8px 12px",
+  background: "rgba(139,92,246,0.22)",
+  color: "#e9d5ff",
+  border: "1px solid rgba(192,132,252,0.25)",
   borderRadius: "999px",
-  background: "rgba(168,85,247,0.16)",
-  color: "#d8b4fe",
-  fontWeight: "900",
-  fontSize: "12px"
+  padding: "5px 9px",
+  fontSize: "11px",
+  fontWeight: "950"
 };
 
-const tokenTitleStyle = {
-  fontSize: "68px",
+const titleStyle = {
+  fontSize: "44px",
   margin: 0,
   lineHeight: 1,
-  fontWeight: "1000"
+  fontWeight: "1000",
+  letterSpacing: "-1px"
 };
 
-const tokenNameStyle = {
-  color: "#a5a0b8",
-  marginTop: "10px",
-  fontSize: "18px"
+const descStyle = {
+  color: "#aaa",
+  margin: "10px 0 0",
+  fontSize: "15px",
+  lineHeight: "1.45",
+  maxWidth: "720px"
 };
 
-const priceBlockStyle = {
-  textAlign: "right"
+const linkRowStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  marginTop: "12px"
 };
 
-const priceLabelStyle = {
-  color: "#a5a0b8",
-  fontSize: "12px",
+const linkButtonStyle = {
+  textDecoration: "none",
+  color: "#ddd6fe",
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  padding: "8px 10px",
+  borderRadius: "10px",
+  fontWeight: "800",
+  fontSize: "13px"
+};
+
+const priceBoxStyle = {
+  minWidth: "210px",
+  background: "#262626",
+  borderRadius: "14px",
+  padding: "14px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px"
+};
+
+const statsGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, 1fr)",
+  gap: "12px"
+};
+
+const statStyle = {
+  background: "#050505",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "14px",
+  padding: "14px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px"
+};
+
+const bondingPanelStyle = {
+  background: "#050505",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "14px",
+  padding: "14px"
+};
+
+const bondingTopStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  color: "#bdbdbd",
+  fontSize: "14px",
+  fontWeight: "800",
   marginBottom: "8px"
 };
 
-const priceValueStyle = {
-  fontSize: "42px",
-  fontWeight: "1000"
-};
-
-const mcapStyle = {
-  marginTop: "10px",
-  color: "#c084fc",
-  fontWeight: "900"
-};
-
-const descriptionStyle = {
-  color: "#b8b4c7",
-  lineHeight: 1.6,
-  fontSize: "17px"
-};
-
-const progressWrapStyle = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "24px",
-  padding: "22px"
-};
-
-const progressTopStyle = {
+const bondingBottomStyle = {
   display: "flex",
   justifyContent: "space-between",
-  marginBottom: "12px"
+  color: "#777",
+  fontSize: "12px",
+  marginTop: "8px"
 };
 
 const progressOuterStyle = {
-  height: "16px",
+  height: "10px",
   borderRadius: "999px",
   background: "rgba(255,255,255,0.08)",
   overflow: "hidden"
@@ -876,235 +953,181 @@ const progressOuterStyle = {
 
 const progressInnerStyle = {
   height: "100%",
-  background: "linear-gradient(90deg,#7c3aed,#c084fc)",
-  boxShadow: "0 0 24px rgba(192,132,252,0.8)"
-};
-
-const statsGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, 1fr)",
-  gap: "16px"
-};
-
-const statStyle = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "22px",
-  padding: "20px",
-  display: "flex",
-  flexDirection: "column",
-  gap: "10px"
+  background: "#8b5cf6",
+  borderRadius: "999px"
 };
 
 const addressPanelStyle = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "24px",
-  padding: "18px",
+  background: "#050505",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "14px",
+  padding: "12px",
   display: "grid",
-  gap: "12px"
+  gap: "8px"
 };
 
 const addressRowStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  gap: "14px",
-  background: "rgba(0,0,0,0.18)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  borderRadius: "16px",
-  padding: "12px 14px"
+  gap: "12px",
+  background: "#151515",
+  borderRadius: "10px",
+  padding: "10px"
 };
 
-const addressLabelStyle = {
-  display: "block",
-  color: "#c084fc",
-  fontSize: "12px",
-  fontWeight: "900",
-  marginBottom: "5px"
-};
-
-const addressFullStyle = {
-  color: "#d6d3e4",
-  fontSize: "13px",
-  wordBreak: "break-all"
-};
-
-const addressButtonStyle = {
-  background: "rgba(168,85,247,0.14)",
-  border: "1px solid rgba(192,132,252,0.22)",
+const copyButtonStyle = {
+  background: "rgba(139,92,246,0.22)",
+  border: "1px solid rgba(192,132,252,0.25)",
   color: "#e9d5ff",
-  padding: "9px 13px",
-  borderRadius: "12px",
+  padding: "8px 10px",
+  borderRadius: "10px",
   cursor: "pointer",
-  fontWeight: "900",
-  flexShrink: 0
+  fontWeight: "900"
 };
 
 const chartPanelStyle = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "28px",
-  padding: "24px"
+  background: "#050505",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "14px",
+  padding: "16px"
 };
 
-const chartHeaderStyle = {
+const panelHeaderStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  marginBottom: "18px"
+  marginBottom: "14px"
 };
 
-const chartTitleStyle = {
-  margin: 0,
-  fontSize: "26px"
-};
-
-const liveBadgeStyle = {
-  padding: "8px 12px",
-  borderRadius: "999px",
-  background: "rgba(168,85,247,0.16)",
-  color: "#d8b4fe",
-  fontWeight: "900",
-  fontSize: "12px"
+const emptyTextStyle = {
+  color: "#888"
 };
 
 const tradesPanelStyle = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "28px",
-  padding: "24px"
+  background: "#050505",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "14px",
+  padding: "16px"
 };
 
 const tradeRowStyle = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  padding: "14px 0",
-  borderTop: "1px solid rgba(255,255,255,0.08)"
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+  padding: "12px 0"
 };
 
-const tradeTypeStyle = {
-  fontWeight: "900"
+const tradeLeftStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px"
 };
 
-const walletTextStyle = {
-  color: "#8f8a9f",
-  fontSize: "13px",
-  marginTop: "5px"
+const tradeDotStyle = {
+  width: "12px",
+  height: "12px",
+  borderRadius: "999px"
 };
 
-const tradeAmountStyle = {
-  fontWeight: "800"
+const tradeRightStyle = {
+  textAlign: "right"
 };
 
 const tradePanelStyle = {
   position: "sticky",
-  top: "24px",
-  alignSelf: "start",
-  background:
-    "linear-gradient(180deg, rgba(168,85,247,0.12), rgba(255,255,255,0.04))",
-  border: "1px solid rgba(192,132,252,0.18)",
-  borderRadius: "28px",
-  padding: "24px",
-  boxShadow: "0 0 60px rgba(168,85,247,0.16)"
-};
-
-const tradeTitleWrapStyle = {
-  marginBottom: "18px"
+  top: "20px",
+  background: "#050505",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "18px",
+  padding: "16px"
 };
 
 const tradeTitleStyle = {
-  fontSize: "32px",
-  margin: 0
+  margin: "0 0 14px",
+  fontSize: "26px"
 };
 
-const tradeSubStyle = {
-  color: "#9c96af",
-  marginTop: "8px"
+const walletButtonStyle = {
+  width: "100%",
+  background: "linear-gradient(135deg,#7c3aed,#c084fc)",
+  border: "none",
+  color: "white",
+  padding: "13px",
+  borderRadius: "12px",
+  cursor: "pointer",
+  fontWeight: "950"
 };
 
-const balanceBoxStyle = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "18px",
-  padding: "18px",
+const balanceStyle = {
+  marginTop: "12px",
+  background: "#151515",
+  borderRadius: "12px",
+  padding: "12px",
   display: "flex",
-  justifyContent: "space-between"
+  justifyContent: "space-between",
+  gap: "10px"
 };
 
-const tradeBoxStyle = {
-  marginTop: "22px"
+const boxStyle = {
+  marginTop: "18px",
+  paddingTop: "18px",
+  borderTop: "1px solid rgba(255,255,255,0.08)"
 };
 
-const tradeLabelStyle = {
-  marginBottom: "12px",
-  fontWeight: "900"
+const labelStyle = {
+  marginBottom: "10px",
+  fontWeight: "900",
+  color: "#d8d4e5"
 };
 
-const presetWrapStyle = {
+const presetGridStyle = {
   display: "grid",
-  gridTemplateColumns: "repeat(4,1fr)",
-  gap: "10px",
-  marginBottom: "12px"
+  gridTemplateColumns: "repeat(4, 1fr)",
+  gap: "8px",
+  marginBottom: "10px"
 };
 
 const presetButtonStyle = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "#151515",
+  border: "1px solid rgba(255,255,255,0.1)",
   color: "white",
-  padding: "10px",
-  borderRadius: "12px",
+  padding: "9px",
+  borderRadius: "10px",
   cursor: "pointer",
-  fontWeight: "700"
+  fontWeight: "800"
 };
 
 const inputStyle = {
   width: "100%",
-  padding: "15px 16px",
-  borderRadius: "16px",
+  padding: "13px 14px",
+  borderRadius: "12px",
   border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.055)",
+  background: "#151515",
   color: "white",
-  marginBottom: "12px",
+  marginBottom: "10px",
   outline: "none"
 };
 
 const buyButtonStyle = {
   width: "100%",
-  background: "linear-gradient(135deg,#7c3aed,#c084fc)",
+  background: "#22c55e",
   border: "none",
-  color: "white",
-  padding: "16px",
-  borderRadius: "16px",
-  fontWeight: "900",
-  cursor: "pointer"
+  color: "#031007",
+  padding: "13px",
+  borderRadius: "12px",
+  cursor: "pointer",
+  fontWeight: "1000"
 };
 
 const sellButtonStyle = {
   width: "100%",
-  background: "linear-gradient(135deg,#ef4444,#f97316)",
+  background: "#ef4444",
   border: "none",
   color: "white",
-  padding: "16px",
-  borderRadius: "16px",
-  fontWeight: "900",
-  cursor: "pointer"
-};
-
-const linksWrapStyle = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "10px",
-  marginTop: "24px"
-};
-
-const linkButtonStyle = {
-  textDecoration: "none",
-  color: "#ddd6fe",
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(192,132,252,0.18)",
-  padding: "12px 14px",
-  borderRadius: "14px",
-  fontWeight: "800"
+  padding: "13px",
+  borderRadius: "12px",
+  cursor: "pointer",
+  fontWeight: "1000"
 };

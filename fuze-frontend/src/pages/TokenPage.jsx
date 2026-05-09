@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer
+} from "recharts";
 
 import {
   FACTORY_ADDRESS,
@@ -30,9 +38,27 @@ export default function TokenPage() {
   const [buyLoading, setBuyLoading] = useState(false);
   const [sellLoading, setSellLoading] = useState(false);
 
+  const chartData = [...trades]
+    .reverse()
+    .map((trade, index) => ({
+      name: `${index + 1}`,
+      volume:
+        trade.trade_type === "buy"
+          ? Number(trade.mon_amount || 0)
+          : Number(trade.token_amount || 0) / 100000,
+      type: trade.trade_type
+    }));
+
   useEffect(() => {
     loadTokenAndStats();
     loadTrades();
+
+    const interval = setInterval(() => {
+      loadTokenAndStats();
+      loadTrades();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [poolAddress]);
 
   async function loadTrades() {
@@ -42,7 +68,7 @@ export default function TokenPage() {
         .select("*")
         .eq("pool_address", poolAddress)
         .order("created_at", { ascending: false })
-        .limit(12);
+        .limit(30);
 
       if (error) throw error;
       setTrades(data || []);
@@ -418,6 +444,41 @@ export default function TokenPage() {
               <Address label="Token" value={token.token} />
               <Address label="Pool" value={token.pool} />
               <Address label="Creator" value={token.creator} />
+            </div>
+
+            <div style={chartPanelStyle}>
+              <div style={tradesHeaderStyle}>
+                <h2 style={tradesTitleStyle}>Live Activity Chart</h2>
+                <span style={tradesCountStyle}>LIVE</span>
+              </div>
+
+              {chartData.length === 0 ? (
+                <p style={emptyTradesStyle}>No chart data yet.</p>
+              ) : (
+                <div style={{ width: "100%", height: 240 }}>
+                  <ResponsiveContainer>
+                    <AreaChart data={chartData}>
+                      <XAxis dataKey="name" stroke="#8f8a9f" />
+                      <YAxis stroke="#8f8a9f" />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#111118",
+                          border: "1px solid rgba(192,132,252,0.25)",
+                          borderRadius: "12px",
+                          color: "white"
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="volume"
+                        stroke="#c084fc"
+                        fill="rgba(192,132,252,0.22)"
+                        strokeWidth={3}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
 
             <div style={tradesPanelStyle}>
@@ -873,6 +934,14 @@ const addressButtonStyle = {
   color: "#c084fc",
   cursor: "pointer",
   fontWeight: "900"
+};
+
+const chartPanelStyle = {
+  marginTop: "24px",
+  background: "rgba(0,0,0,0.22)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "22px",
+  padding: "18px"
 };
 
 const tradesPanelStyle = {

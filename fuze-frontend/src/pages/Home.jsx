@@ -336,6 +336,10 @@ export default function Home() {
     }
   }
 
+  const tokenByPool = new Map(
+    tokens.map((token) => [String(token.pool).toLowerCase(), token])
+  );
+
   const filteredTokens = tokens
     .filter((token) => {
       const q = search.toLowerCase();
@@ -399,36 +403,67 @@ export default function Home() {
           <div style={tickerTrackStyle}>
             {tickerTrades.length === 0 ? (
               <div style={tickerItemStyle}>
+                <div style={tickerTokenWrapStyle}>
+                  <img src="/logo.jpg" alt="Fuze" style={tickerTokenImageStyle} />
+                </div>
+
                 <span style={tickerWalletStyle}>FUZE</span>
                 <span style={tickerBuyStyle}>LIVE</span>
                 <span>waiting for trades...</span>
               </div>
             ) : (
-              tickerTrades.map((trade, index) => (
-                <div key={`${trade.id || index}-${index}`} style={tickerItemStyle}>
-                  <span style={tickerWalletStyle}>
-                    {trade.wallet_address
-                      ? `${trade.wallet_address.slice(0, 6)}...${trade.wallet_address.slice(-4)}`
-                      : "0x0000..."}
-                  </span>
+              tickerTrades.map((trade, index) => {
+                const meta = tokenByPool.get(
+                  String(trade.pool_address || "").toLowerCase()
+                );
 
-                  <span
-                    style={
-                      trade.trade_type === "buy"
-                        ? tickerBuyStyle
-                        : tickerSellStyle
-                    }
+                return (
+                  <div
+                    key={`${trade.id || index}-${index}`}
+                    style={tickerItemStyle}
                   >
-                    {trade.trade_type === "buy" ? "BOUGHT" : "SOLD"}
-                  </span>
+                    <div style={tickerTokenWrapStyle}>
+                      {meta?.imageUrl ? (
+                        <img
+                          src={meta.imageUrl}
+                          alt={meta.symbol || "token"}
+                          style={tickerTokenImageStyle}
+                        />
+                      ) : (
+                        <div style={tickerFallbackStyle}>
+                          {meta?.symbol?.slice(0, 1) || "$"}
+                        </div>
+                      )}
+                    </div>
 
-                  <span>
-                    {trade.trade_type === "buy"
-                      ? `${shortNum(trade.mon_amount)} MON`
-                      : `${shortNum(trade.token_amount)} tokens`}
-                  </span>
-                </div>
-              ))
+                    <span style={tickerWalletStyle}>
+                      {trade.wallet_address
+                        ? `${trade.wallet_address.slice(0, 6)}...${trade.wallet_address.slice(-4)}`
+                        : "0x0000..."}
+                    </span>
+
+                    <span
+                      style={
+                        trade.trade_type === "buy"
+                          ? tickerBuyStyle
+                          : tickerSellStyle
+                      }
+                    >
+                      {trade.trade_type === "buy" ? "BOUGHT" : "SOLD"}
+                    </span>
+
+                    <span>
+                      {trade.trade_type === "buy"
+                        ? `${shortNum(trade.mon_amount)} MON`
+                        : `${shortNum(trade.token_amount)} ${meta?.symbol || "tokens"}`}
+                    </span>
+
+                    {meta?.symbol && (
+                      <strong style={tickerSymbolStyle}>{meta.symbol}</strong>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -827,6 +862,32 @@ const tickerItemStyle = {
   whiteSpace: "nowrap"
 };
 
+const tickerTokenWrapStyle = {
+  width: "20px",
+  height: "20px",
+  borderRadius: "999px",
+  overflow: "hidden",
+  flexShrink: 0,
+  background: "rgba(255,255,255,0.08)"
+};
+
+const tickerTokenImageStyle = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover"
+};
+
+const tickerFallbackStyle = {
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "10px",
+  fontWeight: "1000",
+  color: "#c084fc"
+};
+
 const tickerWalletStyle = {
   color: "#c084fc",
   fontWeight: "1000"
@@ -839,6 +900,11 @@ const tickerBuyStyle = {
 
 const tickerSellStyle = {
   color: "#ef4444",
+  fontWeight: "1000"
+};
+
+const tickerSymbolStyle = {
+  color: "#e9d5ff",
   fontWeight: "1000"
 };
 

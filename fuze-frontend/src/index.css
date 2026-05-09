@@ -163,3 +163,12 @@ textarea::placeholder {
     grid-template-columns: 1fr !important;
   }
 }
+@keyframes tickerMove {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}

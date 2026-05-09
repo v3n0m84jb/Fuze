@@ -29,15 +29,18 @@ export default function Home() {
 
   const [loading, setLoading] = useState(false);
   const [tokens, setTokens] = useState([]);
+  const [latestTrades, setLatestTrades] = useState([]);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("latestTrade");
   const [hoveredCard, setHoveredCard] = useState(null);
 
   useEffect(() => {
     loadTokens();
+    loadLatestTrades();
 
     const interval = setInterval(() => {
       loadTokens();
+      loadLatestTrades();
     }, 8000);
 
     return () => clearInterval(interval);
@@ -126,6 +129,22 @@ export default function Home() {
         holders: 0,
         lastTradeAt: null
       };
+    }
+  }
+
+  async function loadLatestTrades() {
+    try {
+      const { data, error } = await supabase
+        .from("trades")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (error) throw error;
+
+      setLatestTrades(data || []);
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -345,6 +364,11 @@ export default function Home() {
       );
     });
 
+  const tickerTrades =
+    latestTrades.length > 0
+      ? [...latestTrades, ...latestTrades, ...latestTrades]
+      : [];
+
   return (
     <main style={pageStyle}>
       <div style={bgGlowOne} />
@@ -366,10 +390,48 @@ export default function Home() {
             <button style={navButtonStyle}>Leaderboard</button>
 
             <button onClick={() => setShowCreate(true)} style={createButtonStyle}>
-              Create
+              + Create
             </button>
           </div>
         </nav>
+
+        <div style={tickerWrapStyle}>
+          <div style={tickerTrackStyle}>
+            {tickerTrades.length === 0 ? (
+              <div style={tickerItemStyle}>
+                <span style={tickerWalletStyle}>FUZE</span>
+                <span style={tickerBuyStyle}>LIVE</span>
+                <span>waiting for trades...</span>
+              </div>
+            ) : (
+              tickerTrades.map((trade, index) => (
+                <div key={`${trade.id || index}-${index}`} style={tickerItemStyle}>
+                  <span style={tickerWalletStyle}>
+                    {trade.wallet_address
+                      ? `${trade.wallet_address.slice(0, 6)}...${trade.wallet_address.slice(-4)}`
+                      : "0x0000..."}
+                  </span>
+
+                  <span
+                    style={
+                      trade.trade_type === "buy"
+                        ? tickerBuyStyle
+                        : tickerSellStyle
+                    }
+                  >
+                    {trade.trade_type === "buy" ? "BOUGHT" : "SOLD"}
+                  </span>
+
+                  <span>
+                    {trade.trade_type === "buy"
+                      ? `${shortNum(trade.mon_amount)} MON`
+                      : `${shortNum(trade.token_amount)} tokens`}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         {showCreate && (
           <section style={modalOverlayStyle}>
@@ -681,7 +743,7 @@ const navStyle = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  marginBottom: "26px"
+  marginBottom: "10px"
 };
 
 const brandStyle = {
@@ -733,6 +795,51 @@ const createButtonStyle = {
   borderRadius: "14px",
   cursor: "pointer",
   fontWeight: "950"
+};
+
+const tickerWrapStyle = {
+  width: "100%",
+  overflow: "hidden",
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  padding: "9px 0",
+  marginBottom: "24px"
+};
+
+const tickerTrackStyle = {
+  display: "flex",
+  gap: "14px",
+  width: "max-content",
+  animation: "tickerMove 32s linear infinite"
+};
+
+const tickerItemStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  border: "1px solid rgba(192,132,252,0.35)",
+  background: "rgba(0,0,0,0.45)",
+  color: "white",
+  borderRadius: "7px",
+  padding: "5px 10px",
+  fontSize: "14px",
+  fontWeight: "850",
+  whiteSpace: "nowrap"
+};
+
+const tickerWalletStyle = {
+  color: "#c084fc",
+  fontWeight: "1000"
+};
+
+const tickerBuyStyle = {
+  color: "#22c55e",
+  fontWeight: "1000"
+};
+
+const tickerSellStyle = {
+  color: "#ef4444",
+  fontWeight: "1000"
 };
 
 const topSectionStyle = {

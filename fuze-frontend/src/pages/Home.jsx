@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
 
-import Header from "../components/Header";
 import { supabase } from "../lib/supabase";
 
 import {
@@ -34,6 +33,12 @@ export default function Home() {
 
   useEffect(() => {
     loadTokens();
+
+    const interval = setInterval(() => {
+      loadTokens();
+    }, 8000);
+
+    return () => clearInterval(interval);
   }, []);
 
   async function getBondingProgress(poolAddress) {
@@ -41,25 +46,92 @@ export default function Home() {
       const provider = new ethers.JsonRpcProvider(RPC_URL);
       const pool = new ethers.Contract(poolAddress, POOL_ABI, provider);
 
+      const price = await pool.currentPrice();
       const reserve = await pool.reserveMON();
+      const sold = await pool.tokensSold();
       const ignited = await pool.ignited();
 
+      const priceNumber = Number(ethers.formatUnits(price, 18));
       const reserveNumber = Number(ethers.formatEther(reserve));
+      const soldNumber = Number(ethers.formatUnits(sold, 18));
+
       const progress = Math.min(
         (reserveNumber / IGNITION_TARGET_MON) * 100,
         100
       );
 
-      return { progress, ignited };
+      const marketCap = priceNumber * soldNumber;
+
+      return {
+        price: priceNumber,
+        reserve: reserveNumber,
+        sold: soldNumber,
+        marketCap,
+        progress,
+        ignited
+      };
     } catch (err) {
       console.error(err);
-      return { progress: 0, ignited: false };
+      return {
+        price: 0,
+        reserve: 0,
+        sold: 0,
+        marketCap: 0,
+        progress: 0,
+        ignited: false
+      };
+    }
+  }
+
+  async function getTokenTradeStats(poolAddress) {
+    try {
+      const { data, error } = await supabase
+        .from("trades")
+        .select("*")
+        .eq("pool_address", poolAddress)
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      const rows = data || [];
+
+      const volume = rows.reduce((sum, trade) => {
+        if (trade.trade_type === "buy") {
+          return sum + Number(trade.mon_amount || 0);
+        }
+
+        return sum;
+      }, 0);
+
+      const buyers = new Set(
+        rows
+          .filter((trade) => trade.wallet_address)
+          .map((trade) => trade.wallet_address.toLowerCase())
+      );
+
+      return {
+        trades: rows.length,
+        volume,
+        holders: buyers.size
+      };
+    } catch (err) {
+      console.error(err);
+      return {
+        trades: 0,
+        volume: 0,
+        holders: 0
+      };
     }
   }
 
   async function enrichToken(item) {
     const poolAddress = item.pool_address || item.pool;
-    const stats = await getBondingProgress(poolAddress);
+
+    const [stats, tradeStats] = await Promise.all([
+      getBondingProgress(poolAddress),
+      getTokenTradeStats(poolAddress)
+    ]);
 
     return {
       token: item.token_address || item.token,
@@ -72,8 +144,15 @@ export default function Home() {
       website: item.website || null,
       telegram: item.telegram || null,
       twitter: item.twitter || null,
+      price: stats.price,
+      reserve: stats.reserve,
+      sold: stats.sold,
+      marketCap: stats.marketCap,
       progress: stats.progress,
-      ignited: stats.ignited
+      ignited: stats.ignited,
+      trades: tradeStats.trades,
+      volume: tradeStats.volume,
+      holders: tradeStats.holders
     };
   }
 
@@ -93,6 +172,7 @@ export default function Home() {
       }
 
       const provider = new ethers.JsonRpcProvider(RPC_URL);
+
       const factory = new ethers.Contract(
         FACTORY_ADDRESS,
         FACTORY_READ_ABI,
@@ -125,6 +205,7 @@ export default function Home() {
     if (!imageFile) return null;
 
     const fileExt = imageFile.name.split(".").pop();
+
     const fileName = `${Date.now()}-${Math.random()
       .toString(16)
       .slice(2)}.${fileExt}`;
@@ -230,23 +311,35 @@ export default function Home() {
     }
   }
 
-  const filteredTokens = tokens.filter((token) => {
-    const q = search.toLowerCase();
-    return (
-      token.name?.toLowerCase().includes(q) ||
-      token.symbol?.toLowerCase().includes(q)
-    );
-  });
+  const filteredTokens = tokens
+    .filter((token) => {
+      const q = search.toLowerCase();
+
+      return (
+        token.name?.toLowerCase().includes(q) ||
+        token.symbol?.toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      if (b.ignited !== a.ignited) return Number(b.ignited) - Number(a.ignited);
+      if ((b.volume || 0) !== (a.volume || 0)) return b.volume - a.volume;
+      return b.progress - a.progress;
+    });
+
+  const totalVolume = tokens.reduce((sum, token) => sum + Number(token.volume || 0), 0);
+  const totalTrades = tokens.reduce((sum, token) => sum + Number(token.trades || 0), 0);
 
   return (
     <main style={pageStyle}>
       <div style={bgGlowOne} />
       <div style={bgGlowTwo} />
+      <div style={gridOverlayStyle} />
 
       <div style={containerStyle}>
         <nav style={navStyle}>
           <div style={brandStyle}>
             <img src="/logo.jpg" alt="Fuze" style={logoStyle} />
+
             <div>
               <div style={brandNameStyle}>FUZE</div>
               <div style={brandSubStyle}>Monad Launchpad</div>
@@ -254,8 +347,28 @@ export default function Home() {
           </div>
 
           <div style={navActionsStyle}>
-            <button style={ghostButtonStyle}>Explore</button>
-            <button style={ghostButtonStyle}>Trending</button>
+            <button
+              onClick={() =>
+                document
+                  .getElementById("tokens")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+              style={ghostButtonStyle}
+            >
+              Explore
+            </button>
+
+            <button
+              onClick={() =>
+                document
+                  .getElementById("tokens")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+              style={ghostButtonStyle}
+            >
+              Trending
+            </button>
+
             <button onClick={() => setShowCreate(true)} style={launchButtonStyle}>
               Launch Token
             </button>
@@ -271,8 +384,8 @@ export default function Home() {
             </h1>
 
             <p style={heroTextStyle}>
-              A high-voltage meme launchpad for Monad. Create tokens, build momentum,
-              and push them through bonding.
+              Create meme tokens on Monad, trade through bonding, and push them
+              toward ignition.
             </p>
 
             <div style={heroButtonsStyle}>
@@ -288,27 +401,25 @@ export default function Home() {
                 }
                 style={secondaryCtaStyle}
               >
-                View Live Tokens
+                View Live Market
               </button>
             </div>
           </div>
 
-          <div style={heroCardStyle}>
-            <img src="/logo.jpg" alt="Fuze" style={heroLogoStyle} />
+          <div style={heroMarketCardStyle}>
+            <div style={heroMarketTopStyle}>
+              <span>FUZE TESTNET MARKET</span>
+              <strong>LIVE</strong>
+            </div>
 
-            <div style={statRowStyle}>
-              <div>
-                <strong>{tokens.length}</strong>
-                <span>Live Tokens</span>
-              </div>
-              <div>
-                <strong>1 MON</strong>
-                <span>Create Fee</span>
-              </div>
-              <div>
-                <strong>0.2</strong>
-                <span>Ignite MON</span>
-              </div>
+            <div style={heroBigNumberStyle}>{tokens.length}</div>
+            <div style={heroBigLabelStyle}>Live launches</div>
+
+            <div style={heroStatsGridStyle}>
+              <HeroStat label="Volume" value={`${shortNum(totalVolume)} MON`} />
+              <HeroStat label="Trades" value={shortNum(totalTrades)} />
+              <HeroStat label="Create Fee" value={`${CREATE_FEE} MON`} />
+              <HeroStat label="Ignite" value={`${IGNITION_TARGET_MON} MON`} />
             </div>
           </div>
         </section>
@@ -397,8 +508,11 @@ export default function Home() {
         <section id="tokens" style={tokensSectionStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <h2 style={sectionTitleStyle}>Live Tokens</h2>
-              <p style={sectionSubStyle}>Fresh launches on FUZE.</p>
+              <div style={sectionEyebrowStyle}>LIVE MARKET</div>
+              <h2 style={sectionTitleStyle}>Trending Launches</h2>
+              <p style={sectionSubStyle}>
+                Fresh FUZE launches ranked by activity, volume and bonding progress.
+              </p>
             </div>
 
             <input
@@ -412,7 +526,7 @@ export default function Home() {
           <div style={gridStyle}>
             {filteredTokens.map((token, index) => (
               <article
-                key={index}
+                key={token.pool || index}
                 onClick={() => navigate(`/token/${token.pool}`)}
                 style={cardStyle}
               >
@@ -425,19 +539,42 @@ export default function Home() {
                     )}
                   </div>
 
-                  <span style={statusBadgeStyle}>
-                    {token.ignited
-                      ? "IGNITED"
-                      : `${(token.progress || 0).toFixed(1)}%`}
-                  </span>
+                  <div style={cardBadgesStyle}>
+                    {index < 3 && <span style={trendBadgeStyle}>🔥 TRENDING</span>}
+
+                    <span style={statusBadgeStyle}>
+                      {token.ignited ? "IGNITED" : `${token.progress.toFixed(1)}%`}
+                    </span>
+                  </div>
                 </div>
 
-                <h3 style={cardSymbolStyle}>{token.symbol}</h3>
-                <p style={cardNameStyle}>{token.name}</p>
+                <div style={tokenTitleRowStyle}>
+                  <div>
+                    <h3 style={cardSymbolStyle}>{token.symbol}</h3>
+                    <p style={cardNameStyle}>{token.name}</p>
+                  </div>
+
+                  <div style={priceMiniStyle}>
+                    <span>PRICE</span>
+                    <strong>{shortNum(token.price)} MON</strong>
+                  </div>
+                </div>
 
                 {token.description && (
                   <p style={descriptionStyle}>{token.description}</p>
                 )}
+
+                <div style={cardStatsGridStyle}>
+                  <MiniStat label="MCAP" value={`${shortNum(token.marketCap)} MON`} />
+                  <MiniStat label="VOL" value={`${shortNum(token.volume)} MON`} />
+                  <MiniStat label="TRADES" value={shortNum(token.trades)} />
+                  <MiniStat label="HOLDERS" value={shortNum(token.holders)} />
+                </div>
+
+                <div style={miniProgressInfoStyle}>
+                  <span>Bonding</span>
+                  <strong>{token.progress.toFixed(2)}%</strong>
+                </div>
 
                 <div style={miniProgressOuterStyle}>
                   <div
@@ -463,6 +600,40 @@ export default function Home() {
   );
 }
 
+function HeroStat({ label, value }) {
+  return (
+    <div style={heroStatStyle}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }) {
+  return (
+    <div style={miniStatStyle}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function shortNum(value) {
+  if (!value) return "0";
+
+  const n = Number(value);
+
+  if (!Number.isFinite(n)) return value;
+
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
+  if (n < 0.000001 && n > 0) return n.toExponential(2);
+
+  return n.toLocaleString(undefined, {
+    maximumFractionDigits: 8
+  });
+}
+
 const pageStyle = {
   minHeight: "100vh",
   position: "relative",
@@ -476,28 +647,38 @@ const pageStyle = {
 
 const bgGlowOne = {
   position: "fixed",
-  width: "520px",
-  height: "520px",
-  top: "-160px",
-  right: "-100px",
-  background: "rgba(168,85,247,0.28)",
+  width: "540px",
+  height: "540px",
+  top: "-170px",
+  right: "-110px",
+  background: "rgba(168,85,247,0.30)",
   filter: "blur(120px)",
   pointerEvents: "none"
 };
 
 const bgGlowTwo = {
   position: "fixed",
-  width: "420px",
-  height: "420px",
-  bottom: "-140px",
+  width: "440px",
+  height: "440px",
+  bottom: "-150px",
   left: "-120px",
-  background: "rgba(124,58,237,0.22)",
+  background: "rgba(124,58,237,0.24)",
   filter: "blur(120px)",
   pointerEvents: "none"
 };
 
+const gridOverlayStyle = {
+  position: "fixed",
+  inset: 0,
+  backgroundImage:
+    "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)",
+  backgroundSize: "56px 56px",
+  maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent 75%)",
+  pointerEvents: "none"
+};
+
 const containerStyle = {
-  maxWidth: "1280px",
+  maxWidth: "1320px",
   margin: "0 auto",
   position: "relative",
   zIndex: 2
@@ -574,7 +755,7 @@ const heroStyle = {
   gridTemplateColumns: "1.1fr 0.9fr",
   gap: "44px",
   alignItems: "center",
-  padding: "80px 0 70px"
+  padding: "82px 0 72px"
 };
 
 const badgeStyle = {
@@ -639,27 +820,53 @@ const secondaryCtaStyle = {
   fontWeight: "800"
 };
 
-const heroCardStyle = {
+const heroMarketCardStyle = {
   background:
     "linear-gradient(180deg, rgba(168,85,247,0.18), rgba(255,255,255,0.04))",
   border: "1px solid rgba(192,132,252,0.24)",
   borderRadius: "32px",
-  padding: "26px",
+  padding: "28px",
   boxShadow: "0 0 80px rgba(168,85,247,0.18)"
 };
 
-const heroLogoStyle = {
-  width: "100%",
-  borderRadius: "26px",
-  objectFit: "cover",
-  boxShadow: "0 0 70px rgba(168,85,247,0.35)"
+const heroMarketTopStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  color: "#c4b5fd",
+  fontSize: "13px",
+  fontWeight: "900"
 };
 
-const statRowStyle = {
+const heroBigNumberStyle = {
+  marginTop: "28px",
+  fontSize: "96px",
+  lineHeight: 1,
+  fontWeight: "1000",
+  letterSpacing: "-5px"
+};
+
+const heroBigLabelStyle = {
+  color: "#a5a0b8",
+  fontSize: "18px",
+  marginTop: "10px"
+};
+
+const heroStatsGridStyle = {
+  marginTop: "28px",
   display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
-  gap: "12px",
-  marginTop: "16px"
+  gridTemplateColumns: "repeat(2, 1fr)",
+  gap: "12px"
+};
+
+const heroStatStyle = {
+  background: "rgba(0,0,0,0.22)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "20px",
+  padding: "16px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px"
 };
 
 const modalOverlayStyle = {
@@ -729,7 +936,7 @@ const fileInputStyle = {
 };
 
 const tokensSectionStyle = {
-  paddingBottom: "80px"
+  paddingBottom: "90px"
 };
 
 const sectionHeaderStyle = {
@@ -740,9 +947,17 @@ const sectionHeaderStyle = {
   marginBottom: "24px"
 };
 
+const sectionEyebrowStyle = {
+  color: "#c084fc",
+  fontWeight: "900",
+  fontSize: "13px",
+  marginBottom: "8px"
+};
+
 const sectionTitleStyle = {
-  fontSize: "38px",
-  margin: 0
+  fontSize: "44px",
+  margin: 0,
+  letterSpacing: "-1.5px"
 };
 
 const sectionSubStyle = {
@@ -751,7 +966,7 @@ const sectionSubStyle = {
 };
 
 const searchStyle = {
-  width: "320px",
+  width: "340px",
   padding: "15px 16px",
   borderRadius: "16px",
   border: "1px solid rgba(192,132,252,0.18)",
@@ -762,32 +977,32 @@ const searchStyle = {
 
 const gridStyle = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(310px, 1fr))",
   gap: "20px"
 };
 
 const cardStyle = {
   background:
-    "linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.035))",
+    "linear-gradient(180deg, rgba(255,255,255,0.078), rgba(255,255,255,0.032))",
   border: "1px solid rgba(192,132,252,0.16)",
-  borderRadius: "26px",
+  borderRadius: "28px",
   padding: "22px",
   cursor: "pointer",
   transition: "0.2s ease",
-  boxShadow: "0 0 40px rgba(168,85,247,0.08)"
+  boxShadow: "0 0 42px rgba(168,85,247,0.08)"
 };
 
 const cardTopStyle = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
+  alignItems: "flex-start",
   marginBottom: "20px"
 };
 
 const imageWrapStyle = {
-  width: "72px",
-  height: "72px",
-  borderRadius: "20px",
+  width: "76px",
+  height: "76px",
+  borderRadius: "22px",
   overflow: "hidden",
   background: "rgba(168,85,247,0.16)",
   display: "flex",
@@ -808,6 +1023,23 @@ const fallbackStyle = {
   color: "#e9d5ff"
 };
 
+const cardBadgesStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+  alignItems: "flex-end"
+};
+
+const trendBadgeStyle = {
+  fontSize: "10px",
+  fontWeight: "1000",
+  color: "#fed7aa",
+  border: "1px solid rgba(251,146,60,0.22)",
+  background: "rgba(251,146,60,0.12)",
+  padding: "7px 9px",
+  borderRadius: "999px"
+};
+
 const statusBadgeStyle = {
   fontSize: "11px",
   fontWeight: "900",
@@ -818,40 +1050,82 @@ const statusBadgeStyle = {
   borderRadius: "999px"
 };
 
+const tokenTitleRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "14px",
+  alignItems: "flex-start"
+};
+
 const cardSymbolStyle = {
-  fontSize: "30px",
+  fontSize: "32px",
   margin: "0 0 6px",
   fontWeight: "950"
 };
 
 const cardNameStyle = {
   color: "#d6d3e4",
-  margin: "0 0 12px"
+  margin: 0
+};
+
+const priceMiniStyle = {
+  textAlign: "right",
+  color: "#a5a0b8",
+  fontSize: "11px",
+  fontWeight: "800"
 };
 
 const descriptionStyle = {
   color: "#918ba3",
   fontSize: "14px",
   lineHeight: "1.45",
-  minHeight: "40px"
+  minHeight: "40px",
+  marginTop: "14px"
+};
+
+const cardStatsGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, 1fr)",
+  gap: "10px",
+  marginTop: "18px"
+};
+
+const miniStatStyle = {
+  background: "rgba(0,0,0,0.22)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  borderRadius: "16px",
+  padding: "12px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "5px"
+};
+
+const miniProgressInfoStyle = {
+  marginTop: "18px",
+  marginBottom: "8px",
+  display: "flex",
+  justifyContent: "space-between",
+  color: "#bdb7cd",
+  fontSize: "13px"
 };
 
 const miniProgressOuterStyle = {
-  height: "8px",
+  height: "9px",
   background: "rgba(255,255,255,0.08)",
   borderRadius: "999px",
-  overflow: "hidden",
-  margin: "18px 0"
+  overflow: "hidden"
 };
 
 const miniProgressInnerStyle = {
   height: "100%",
-  background: "linear-gradient(90deg, #7c3aed, #c084fc)"
+  background: "linear-gradient(90deg, #7c3aed, #a855f7, #c084fc)",
+  boxShadow: "0 0 20px rgba(192,132,252,0.75)"
 };
 
 const cardFooterStyle = {
   display: "flex",
   justifyContent: "space-between",
   color: "#8f8a9f",
-  fontSize: "13px"
+  fontSize: "13px",
+  marginTop: "18px"
 };

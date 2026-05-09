@@ -113,3 +113,53 @@ textarea::placeholder {
     padding: 14px !important;
   }
 }
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden !important;
+  }
+
+  main {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  main > div {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  section[style*="grid-template-columns"] {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  section[style*="grid-template-columns"] > div,
+  section[style*="grid-template-columns"] > aside {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  aside {
+    position: static !important;
+    margin-top: 20px !important;
+  }
+
+  div[style*="repeat(4"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  div[style*="repeat(3"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  div[style*="repeat(2"] {
+    grid-template-columns: 1fr !important;
+  }
+}

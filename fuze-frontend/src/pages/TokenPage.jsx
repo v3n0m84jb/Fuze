@@ -40,12 +40,10 @@ export default function TokenPage() {
 
   const chartData = [...trades]
     .reverse()
+    .filter((trade) => trade.price_after !== null && trade.price_after !== undefined)
     .map((trade, index) => ({
       name: `${index + 1}`,
-      volume:
-        trade.trade_type === "buy"
-          ? Number(trade.mon_amount || 0)
-          : Number(trade.token_amount || 0) / 100000,
+      price: Number(trade.price_after),
       type: trade.trade_type
     }));
 
@@ -68,7 +66,7 @@ export default function TokenPage() {
         .select("*")
         .eq("pool_address", poolAddress)
         .order("created_at", { ascending: false })
-        .limit(30);
+        .limit(50);
 
       if (error) throw error;
       setTrades(data || []);
@@ -199,6 +197,11 @@ export default function TokenPage() {
     }
   }
 
+  async function getPoolPriceAfter(poolContract) {
+    const priceAfter = await poolContract.currentPrice();
+    return ethers.formatUnits(priceAfter, 18);
+  }
+
   async function buyToken() {
     if (!token) return;
 
@@ -228,6 +231,7 @@ export default function TokenPage() {
       });
 
       const receipt = await tx.wait();
+      const priceAfter = await getPoolPriceAfter(pool);
 
       await supabase.from("trades").insert({
         token_address: token.token,
@@ -235,6 +239,7 @@ export default function TokenPage() {
         wallet_address: address,
         trade_type: "buy",
         mon_amount: buyAmount,
+        price_after: priceAfter,
         tx_hash: receipt.hash
       });
 
@@ -288,6 +293,7 @@ export default function TokenPage() {
 
       const sellTx = await pool.sell(amount, 0);
       const receipt = await sellTx.wait();
+      const priceAfter = await getPoolPriceAfter(pool);
 
       await supabase.from("trades").insert({
         token_address: token.token,
@@ -295,6 +301,7 @@ export default function TokenPage() {
         wallet_address: address,
         trade_type: "sell",
         token_amount: sellAmount,
+        price_after: priceAfter,
         tx_hash: receipt.hash
       });
 
@@ -448,19 +455,22 @@ export default function TokenPage() {
 
             <div style={chartPanelStyle}>
               <div style={tradesHeaderStyle}>
-                <h2 style={tradesTitleStyle}>Live Activity Chart</h2>
+                <h2 style={tradesTitleStyle}>Price Chart</h2>
                 <span style={tradesCountStyle}>LIVE</span>
               </div>
 
               {chartData.length === 0 ? (
-                <p style={emptyTradesStyle}>No chart data yet.</p>
+                <p style={emptyTradesStyle}>
+                  No price data yet. Make a buy or sell to start the chart.
+                </p>
               ) : (
-                <div style={{ width: "100%", height: 240 }}>
+                <div style={{ width: "100%", height: 260 }}>
                   <ResponsiveContainer>
                     <AreaChart data={chartData}>
                       <XAxis dataKey="name" stroke="#8f8a9f" />
-                      <YAxis stroke="#8f8a9f" />
+                      <YAxis stroke="#8f8a9f" domain={["auto", "auto"]} />
                       <Tooltip
+                        formatter={(value) => [`${value} MON`, "Price"]}
                         contentStyle={{
                           background: "#111118",
                           border: "1px solid rgba(192,132,252,0.25)",
@@ -470,7 +480,7 @@ export default function TokenPage() {
                       />
                       <Area
                         type="monotone"
-                        dataKey="volume"
+                        dataKey="price"
                         stroke="#c084fc"
                         fill="rgba(192,132,252,0.22)"
                         strokeWidth={3}
@@ -515,7 +525,7 @@ export default function TokenPage() {
                         : `${trade.token_amount} ${token.symbol}`}
                     </strong>
                     <p style={tradeWalletStyle}>
-                      {new Date(trade.created_at).toLocaleTimeString()}
+                      Price: {trade.price_after ? `${shortNum(trade.price_after)} MON` : "-"}
                     </p>
                   </div>
                 </div>
@@ -654,7 +664,7 @@ function shortNum(value) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
   if (n < 0.000001 && n > 0) return n.toExponential(2);
-  return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 8 });
 }
 
 const pageStyle = {

@@ -22,6 +22,7 @@ export default function TokenPage() {
   const [poolStats, setPoolStats] = useState(null);
   const [wallet, setWallet] = useState("");
   const [tokenBalance, setTokenBalance] = useState("0");
+  const [trades, setTrades] = useState([]);
 
   const [buyAmount, setBuyAmount] = useState("0.01");
   const [sellAmount, setSellAmount] = useState("");
@@ -31,7 +32,24 @@ export default function TokenPage() {
 
   useEffect(() => {
     loadTokenAndStats();
+    loadTrades();
   }, [poolAddress]);
+
+  async function loadTrades() {
+    try {
+      const { data, error } = await supabase
+        .from("trades")
+        .select("*")
+        .eq("pool_address", poolAddress)
+        .order("created_at", { ascending: false })
+        .limit(12);
+
+      if (error) throw error;
+      setTrades(data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   async function loadTokenAndStats() {
     try {
@@ -183,10 +201,20 @@ export default function TokenPage() {
         value: ethers.parseEther(buyAmount)
       });
 
-      await tx.wait();
+      const receipt = await tx.wait();
+
+      await supabase.from("trades").insert({
+        token_address: token.token,
+        pool_address: token.pool,
+        wallet_address: address,
+        trade_type: "buy",
+        mon_amount: buyAmount,
+        tx_hash: receipt.hash
+      });
 
       await loadTokenAndStats();
       await loadTokenBalance(token, address);
+      await loadTrades();
 
       alert("Buy complete!");
     } catch (err) {
@@ -233,12 +261,22 @@ export default function TokenPage() {
       await approveTx.wait();
 
       const sellTx = await pool.sell(amount, 0);
-      await sellTx.wait();
+      const receipt = await sellTx.wait();
+
+      await supabase.from("trades").insert({
+        token_address: token.token,
+        pool_address: token.pool,
+        wallet_address: address,
+        trade_type: "sell",
+        token_amount: sellAmount,
+        tx_hash: receipt.hash
+      });
 
       setSellAmount("");
 
       await loadTokenAndStats();
       await loadTokenBalance(token, address);
+      await loadTrades();
 
       alert("Sell complete!");
     } catch (err) {
@@ -253,7 +291,11 @@ export default function TokenPage() {
     return (
       <main style={pageStyle}>
         <div style={containerStyle}>
-          <TopNav navigate={navigate} wallet={wallet} connectWallet={connectWallet} />
+          <TopNav
+            navigate={navigate}
+            wallet={wallet}
+            connectWallet={connectWallet}
+          />
           <section style={panelStyle}>
             <h1>Token not found</h1>
             <p style={{ color: "#a5a0b8" }}>{poolAddress}</p>
@@ -269,7 +311,11 @@ export default function TokenPage() {
       <div style={glowTwo} />
 
       <div style={containerStyle}>
-        <TopNav navigate={navigate} wallet={wallet} connectWallet={connectWallet} />
+        <TopNav
+          navigate={navigate}
+          wallet={wallet}
+          connectWallet={connectWallet}
+        />
 
         <button onClick={() => navigate("/")} style={backButtonStyle}>
           ← Back to launches
@@ -280,7 +326,11 @@ export default function TokenPage() {
             <div style={tokenHeaderStyle}>
               <div style={tokenImageWrapStyle}>
                 {token.imageUrl ? (
-                  <img src={token.imageUrl} alt={token.symbol} style={tokenImageStyle} />
+                  <img
+                    src={token.imageUrl}
+                    alt={token.symbol}
+                    style={tokenImageStyle}
+                  />
                 ) : (
                   <span style={fallbackStyle}>{token.symbol?.slice(0, 2)}</span>
                 )}
@@ -303,7 +353,9 @@ export default function TokenPage() {
             <div style={progressBlockStyle}>
               <div style={progressTopStyle}>
                 <span>Bonding progress</span>
-                <strong>{poolStats ? `${poolStats.progress.toFixed(2)}%` : "-"}</strong>
+                <strong>
+                  {poolStats ? `${poolStats.progress.toFixed(2)}%` : "-"}
+                </strong>
               </div>
 
               <div style={progressOuterStyle}>
@@ -318,24 +370,45 @@ export default function TokenPage() {
 
             <div style={statsGridStyle}>
               <Stat label="Price" value={`${shortNum(poolStats?.price)} MON`} />
-              <Stat label="Reserve" value={`${shortNum(poolStats?.reserve)} MON`} />
+              <Stat
+                label="Reserve"
+                value={`${shortNum(poolStats?.reserve)} MON`}
+              />
               <Stat label="Tokens Sold" value={shortNum(poolStats?.sold)} />
-              <Stat label="Ignition Target" value={`${IGNITION_TARGET_MON} MON`} />
+              <Stat
+                label="Ignition Target"
+                value={`${IGNITION_TARGET_MON} MON`}
+              />
             </div>
 
             <div style={linksRowStyle}>
               {token.website && (
-                <a href={token.website} target="_blank" style={linkButtonStyle}>
+                <a
+                  href={token.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={linkButtonStyle}
+                >
                   Website
                 </a>
               )}
               {token.telegram && (
-                <a href={token.telegram} target="_blank" style={linkButtonStyle}>
+                <a
+                  href={token.telegram}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={linkButtonStyle}
+                >
                   Telegram
                 </a>
               )}
               {token.twitter && (
-                <a href={token.twitter} target="_blank" style={linkButtonStyle}>
+                <a
+                  href={token.twitter}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={linkButtonStyle}
+                >
                   X / Twitter
                 </a>
               )}
@@ -345,6 +418,47 @@ export default function TokenPage() {
               <Address label="Token" value={token.token} />
               <Address label="Pool" value={token.pool} />
               <Address label="Creator" value={token.creator} />
+            </div>
+
+            <div style={tradesPanelStyle}>
+              <div style={tradesHeaderStyle}>
+                <h2 style={tradesTitleStyle}>Recent Trades</h2>
+                <span style={tradesCountStyle}>{trades.length}</span>
+              </div>
+
+              {trades.length === 0 && (
+                <p style={emptyTradesStyle}>No trades yet.</p>
+              )}
+
+              {trades.map((trade) => (
+                <div key={trade.id} style={tradeRowStyle}>
+                  <div>
+                    <strong
+                      style={{
+                        color:
+                          trade.trade_type === "buy" ? "#86efac" : "#fca5a5"
+                      }}
+                    >
+                      {trade.trade_type.toUpperCase()}
+                    </strong>
+                    <p style={tradeWalletStyle}>
+                      {trade.wallet_address.slice(0, 6)}...
+                      {trade.wallet_address.slice(-4)}
+                    </p>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <strong>
+                      {trade.trade_type === "buy"
+                        ? `${trade.mon_amount} MON`
+                        : `${trade.token_amount} ${token.symbol}`}
+                    </strong>
+                    <p style={tradeWalletStyle}>
+                      {new Date(trade.created_at).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -390,8 +504,8 @@ export default function TokenPage() {
                 {poolStats?.ignited
                   ? "Bonding finished"
                   : buyLoading
-                  ? "Buying..."
-                  : "Buy"}
+                    ? "Buying..."
+                    : "Buy"}
               </button>
             </div>
 
@@ -416,8 +530,8 @@ export default function TokenPage() {
                 {poolStats?.ignited
                   ? "Bonding finished"
                   : sellLoading
-                  ? "Selling..."
-                  : "Sell"}
+                    ? "Selling..."
+                    : "Sell"}
               </button>
             </div>
           </aside>
@@ -439,7 +553,9 @@ function TopNav({ navigate, wallet, connectWallet }) {
       </div>
 
       <button onClick={connectWallet} style={navWalletStyle}>
-        {wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : "Connect Wallet"}
+        {wallet
+          ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}`
+          : "Connect Wallet"}
       </button>
     </nav>
   );
@@ -757,6 +873,49 @@ const addressButtonStyle = {
   color: "#c084fc",
   cursor: "pointer",
   fontWeight: "900"
+};
+
+const tradesPanelStyle = {
+  marginTop: "24px",
+  background: "rgba(0,0,0,0.22)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "22px",
+  padding: "18px"
+};
+
+const tradesHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: "14px"
+};
+
+const tradesTitleStyle = {
+  margin: 0,
+  fontSize: "24px"
+};
+
+const tradesCountStyle = {
+  color: "#c084fc",
+  fontWeight: "900"
+};
+
+const emptyTradesStyle = {
+  color: "#9993aa"
+};
+
+const tradeRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "12px 0",
+  borderTop: "1px solid rgba(255,255,255,0.08)"
+};
+
+const tradeWalletStyle = {
+  color: "#9993aa",
+  marginTop: "4px",
+  fontSize: "13px"
 };
 
 const tradeHeaderStyle = {

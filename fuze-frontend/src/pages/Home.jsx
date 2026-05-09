@@ -9,7 +9,9 @@ import {
   FACTORY_ADDRESS,
   FACTORY_ABI,
   FACTORY_READ_ABI,
-  CREATE_FEE
+  CREATE_FEE,
+  POOL_ABI,
+  IGNITION_TARGET_MON
 } from "../lib/contracts";
 
 const RPC_URL = "https://testnet-rpc.monad.xyz";
@@ -34,6 +36,47 @@ export default function Home() {
     loadTokens();
   }, []);
 
+  async function getBondingProgress(poolAddress) {
+    try {
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      const pool = new ethers.Contract(poolAddress, POOL_ABI, provider);
+
+      const reserve = await pool.reserveMON();
+      const ignited = await pool.ignited();
+
+      const reserveNumber = Number(ethers.formatEther(reserve));
+      const progress = Math.min(
+        (reserveNumber / IGNITION_TARGET_MON) * 100,
+        100
+      );
+
+      return { progress, ignited };
+    } catch (err) {
+      console.error(err);
+      return { progress: 0, ignited: false };
+    }
+  }
+
+  async function enrichToken(item) {
+    const poolAddress = item.pool_address || item.pool;
+    const stats = await getBondingProgress(poolAddress);
+
+    return {
+      token: item.token_address || item.token,
+      pool: poolAddress,
+      creator: item.creator_address || item.creator,
+      name: item.name,
+      symbol: item.symbol,
+      description: item.description || null,
+      imageUrl: item.image_url || null,
+      website: item.website || null,
+      telegram: item.telegram || null,
+      twitter: item.twitter || null,
+      progress: stats.progress,
+      ignited: stats.ignited
+    };
+  }
+
   async function loadTokens() {
     try {
       const { data, error } = await supabase
@@ -44,20 +87,8 @@ export default function Home() {
       if (error) throw error;
 
       if (data?.length) {
-        setTokens(
-          data.map((item) => ({
-            token: item.token_address,
-            pool: item.pool_address,
-            creator: item.creator_address,
-            name: item.name,
-            symbol: item.symbol,
-            description: item.description,
-            imageUrl: item.image_url,
-            website: item.website,
-            telegram: item.telegram,
-            twitter: item.twitter
-          }))
-        );
+        const enriched = await Promise.all(data.map(enrichToken));
+        setTokens(enriched);
         return;
       }
 
@@ -73,6 +104,7 @@ export default function Home() {
 
       for (let i = Number(total) - 1; i >= 0; i--) {
         const item = await factory.allTokens(i);
+
         loaded.push({
           token: item.token,
           pool: item.pool,
@@ -82,7 +114,8 @@ export default function Home() {
         });
       }
 
-      setTokens(loaded);
+      const enriched = await Promise.all(loaded.map(enrichToken));
+      setTokens(enriched);
     } catch (err) {
       console.error(err);
     }
@@ -392,7 +425,11 @@ export default function Home() {
                     )}
                   </div>
 
-                  <span style={statusBadgeStyle}>BONDING</span>
+                  <span style={statusBadgeStyle}>
+                    {token.ignited
+                      ? "IGNITED"
+                      : `${(token.progress || 0).toFixed(1)}%`}
+                  </span>
                 </div>
 
                 <h3 style={cardSymbolStyle}>{token.symbol}</h3>
@@ -403,7 +440,12 @@ export default function Home() {
                 )}
 
                 <div style={miniProgressOuterStyle}>
-                  <div style={miniProgressInnerStyle} />
+                  <div
+                    style={{
+                      ...miniProgressInnerStyle,
+                      width: `${token.progress || 0}%`
+                    }}
+                  />
                 </div>
 
                 <div style={cardFooterStyle}>
@@ -803,7 +845,6 @@ const miniProgressOuterStyle = {
 };
 
 const miniProgressInnerStyle = {
-  width: "18%",
   height: "100%",
   background: "linear-gradient(90deg, #7c3aed, #c084fc)"
 };

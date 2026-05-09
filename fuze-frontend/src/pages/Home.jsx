@@ -30,6 +30,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [tokens, setTokens] = useState([]);
   const [search, setSearch] = useState("");
+  const [hoveredCard, setHoveredCard] = useState(null);
 
   useEffect(() => {
     loadTokens();
@@ -110,17 +111,24 @@ export default function Home() {
           .map((trade) => trade.wallet_address.toLowerCase())
       );
 
+      const buys = rows.filter((trade) => trade.trade_type === "buy").length;
+      const sells = rows.filter((trade) => trade.trade_type === "sell").length;
+
       return {
         trades: rows.length,
         volume,
-        holders: buyers.size
+        holders: buyers.size,
+        buys,
+        sells
       };
     } catch (err) {
       console.error(err);
       return {
         trades: 0,
         volume: 0,
-        holders: 0
+        holders: 0,
+        buys: 0,
+        sells: 0
       };
     }
   }
@@ -152,7 +160,9 @@ export default function Home() {
       ignited: stats.ignited,
       trades: tradeStats.trades,
       volume: tradeStats.volume,
-      holders: tradeStats.holders
+      holders: tradeStats.holders,
+      buys: tradeStats.buys,
+      sells: tradeStats.sells
     };
   }
 
@@ -326,8 +336,15 @@ export default function Home() {
       return b.progress - a.progress;
     });
 
-  const totalVolume = tokens.reduce((sum, token) => sum + Number(token.volume || 0), 0);
-  const totalTrades = tokens.reduce((sum, token) => sum + Number(token.trades || 0), 0);
+  const totalVolume = tokens.reduce(
+    (sum, token) => sum + Number(token.volume || 0),
+    0
+  );
+
+  const totalTrades = tokens.reduce(
+    (sum, token) => sum + Number(token.trades || 0),
+    0
+  );
 
   return (
     <main style={pageStyle}>
@@ -524,75 +541,129 @@ export default function Home() {
           </div>
 
           <div style={gridStyle}>
-            {filteredTokens.map((token, index) => (
-              <article
-                key={token.pool || index}
-                onClick={() => navigate(`/token/${token.pool}`)}
-                style={cardStyle}
-              >
-                <div style={cardTopStyle}>
-                  <div style={imageWrapStyle}>
-                    {token.imageUrl ? (
-                      <img src={token.imageUrl} alt={token.symbol} style={imageStyle} />
-                    ) : (
-                      <span style={fallbackStyle}>{token.symbol?.slice(0, 2)}</span>
-                    )}
-                  </div>
+            {filteredTokens.map((token, index) => {
+              const isHovered = hoveredCard === token.pool;
+              const activity = Number(token.buys || 0) + Number(token.sells || 0);
+              const buyPercent =
+                activity > 0 ? Math.round((Number(token.buys || 0) / activity) * 100) : 0;
 
-                  <div style={cardBadgesStyle}>
-                    {index < 3 && <span style={trendBadgeStyle}>🔥 TRENDING</span>}
+              return (
+                <article
+                  key={token.pool || index}
+                  onClick={() => navigate(`/token/${token.pool}`)}
+                  onMouseEnter={() => setHoveredCard(token.pool)}
+                  onMouseLeave={() => setHoveredCard(null)}
+                  style={{
+                    ...cardStyle,
+                    ...(isHovered ? cardHoverStyle : {})
+                  }}
+                >
+                  <div style={cardGlowStyle} />
 
-                    <span style={statusBadgeStyle}>
-                      {token.ignited ? "IGNITED" : `${token.progress.toFixed(1)}%`}
+                  <div style={cardHeaderStyle}>
+                    <div style={rankWrapStyle}>
+                      <span style={rankBadgeStyle}>#{index + 1}</span>
+                      {index < 3 && <span style={hotBadgeStyle}>🔥 HOT</span>}
+                    </div>
+
+                    <span
+                      style={{
+                        ...statusPillStyle,
+                        ...(token.ignited ? ignitedPillStyle : bondingPillStyle)
+                      }}
+                    >
+                      {token.ignited ? "IGNITED" : "BONDING"}
                     </span>
                   </div>
-                </div>
 
-                <div style={tokenTitleRowStyle}>
-                  <div>
-                    <h3 style={cardSymbolStyle}>{token.symbol}</h3>
-                    <p style={cardNameStyle}>{token.name}</p>
+                  <div style={cardMainStyle}>
+                    <div style={imageWrapStyle}>
+                      {token.imageUrl ? (
+                        <img src={token.imageUrl} alt={token.symbol} style={imageStyle} />
+                      ) : (
+                        <span style={fallbackStyle}>{token.symbol?.slice(0, 2)}</span>
+                      )}
+                    </div>
+
+                    <div style={tokenMetaStyle}>
+                      <h3 style={cardSymbolStyle}>{token.symbol}</h3>
+                      <p style={cardNameStyle}>{token.name}</p>
+                    </div>
                   </div>
 
-                  <div style={priceMiniStyle}>
-                    <span>PRICE</span>
-                    <strong>{shortNum(token.price)} MON</strong>
+                  <div style={marketFocusStyle}>
+                    <div>
+                      <span style={marketLabelStyle}>MARKET CAP</span>
+                      <strong style={marketValueStyle}>
+                        {shortNum(token.marketCap)} MON
+                      </strong>
+                    </div>
+
+                    <div style={priceBoxStyle}>
+                      <span>PRICE</span>
+                      <strong>{shortNum(token.price)}</strong>
+                    </div>
                   </div>
-                </div>
 
-                {token.description && (
-                  <p style={descriptionStyle}>{token.description}</p>
-                )}
+                  {token.description && (
+                    <p style={descriptionStyle}>{token.description}</p>
+                  )}
 
-                <div style={cardStatsGridStyle}>
-                  <MiniStat label="MCAP" value={`${shortNum(token.marketCap)} MON`} />
-                  <MiniStat label="VOL" value={`${shortNum(token.volume)} MON`} />
-                  <MiniStat label="TRADES" value={shortNum(token.trades)} />
-                  <MiniStat label="HOLDERS" value={shortNum(token.holders)} />
-                </div>
+                  <div style={activityStripStyle}>
+                    <div style={activityTopStyle}>
+                      <span>Buy pressure</span>
+                      <strong>{buyPercent}%</strong>
+                    </div>
 
-                <div style={miniProgressInfoStyle}>
-                  <span>Bonding</span>
-                  <strong>{token.progress.toFixed(2)}%</strong>
-                </div>
+                    <div style={activityBarOuterStyle}>
+                      <div
+                        style={{
+                          ...activityBarInnerStyle,
+                          width: `${buyPercent}%`
+                        }}
+                      />
+                    </div>
 
-                <div style={miniProgressOuterStyle}>
-                  <div
-                    style={{
-                      ...miniProgressInnerStyle,
-                      width: `${token.progress || 0}%`
-                    }}
-                  />
-                </div>
+                    <div style={activityBottomStyle}>
+                      <span>Buys {token.buys || 0}</span>
+                      <span>Sells {token.sells || 0}</span>
+                    </div>
+                  </div>
 
-                <div style={cardFooterStyle}>
-                  <span>Pool</span>
-                  <strong>
-                    {token.pool.slice(0, 6)}...{token.pool.slice(-4)}
-                  </strong>
-                </div>
-              </article>
-            ))}
+                  <div style={cardStatsGridStyle}>
+                    <MiniStat label="VOL" value={`${shortNum(token.volume)} MON`} />
+                    <MiniStat label="TRADES" value={shortNum(token.trades)} />
+                    <MiniStat label="HOLDERS" value={shortNum(token.holders)} />
+                    <MiniStat label="SOLD" value={shortNum(token.sold)} />
+                  </div>
+
+                  <div style={miniProgressInfoStyle}>
+                    <span>Bonding Progress</span>
+                    <strong>{token.progress.toFixed(2)}%</strong>
+                  </div>
+
+                  <div style={miniProgressOuterStyle}>
+                    <div
+                      style={{
+                        ...miniProgressInnerStyle,
+                        width: `${token.progress || 0}%`
+                      }}
+                    />
+                  </div>
+
+                  <div style={cardFooterStyle}>
+                    <div>
+                      <span style={poolLabelStyle}>POOL</span>
+                      <strong>
+                        {token.pool.slice(0, 6)}...{token.pool.slice(-4)}
+                      </strong>
+                    </div>
+
+                    <button style={openButtonStyle}>Open →</button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
       </div>
@@ -977,38 +1048,115 @@ const searchStyle = {
 
 const gridStyle = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(310px, 1fr))",
-  gap: "20px"
+  gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))",
+  gap: "22px"
 };
 
 const cardStyle = {
+  position: "relative",
+  overflow: "hidden",
   background:
-    "linear-gradient(180deg, rgba(255,255,255,0.078), rgba(255,255,255,0.032))",
+    "linear-gradient(180deg, rgba(255,255,255,0.082), rgba(255,255,255,0.034))",
   border: "1px solid rgba(192,132,252,0.16)",
-  borderRadius: "28px",
+  borderRadius: "30px",
   padding: "22px",
   cursor: "pointer",
-  transition: "0.2s ease",
-  boxShadow: "0 0 42px rgba(168,85,247,0.08)"
+  transition: "0.22s ease",
+  boxShadow: "0 0 42px rgba(168,85,247,0.08)",
+  transform: "translateY(0)"
 };
 
-const cardTopStyle = {
+const cardHoverStyle = {
+  transform: "translateY(-6px)",
+  border: "1px solid rgba(216,180,254,0.35)",
+  boxShadow:
+    "0 24px 80px rgba(168,85,247,0.22), inset 0 0 0 1px rgba(255,255,255,0.04)"
+};
+
+const cardGlowStyle = {
+  position: "absolute",
+  width: "180px",
+  height: "180px",
+  top: "-70px",
+  right: "-70px",
+  background: "rgba(168,85,247,0.18)",
+  filter: "blur(42px)",
+  pointerEvents: "none"
+};
+
+const cardHeaderStyle = {
+  position: "relative",
+  zIndex: 2,
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "flex-start",
-  marginBottom: "20px"
+  alignItems: "center",
+  marginBottom: "18px"
+};
+
+const rankWrapStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px"
+};
+
+const rankBadgeStyle = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  color: "#e9d5ff",
+  padding: "7px 10px",
+  borderRadius: "999px",
+  fontSize: "12px",
+  fontWeight: "1000"
+};
+
+const hotBadgeStyle = {
+  background: "rgba(251,146,60,0.12)",
+  border: "1px solid rgba(251,146,60,0.24)",
+  color: "#fed7aa",
+  padding: "7px 10px",
+  borderRadius: "999px",
+  fontSize: "11px",
+  fontWeight: "1000"
+};
+
+const statusPillStyle = {
+  padding: "8px 11px",
+  borderRadius: "999px",
+  fontSize: "11px",
+  fontWeight: "1000"
+};
+
+const bondingPillStyle = {
+  color: "#d8b4fe",
+  border: "1px solid rgba(192,132,252,0.22)",
+  background: "rgba(168,85,247,0.13)"
+};
+
+const ignitedPillStyle = {
+  color: "#86efac",
+  border: "1px solid rgba(134,239,172,0.22)",
+  background: "rgba(34,197,94,0.12)"
+};
+
+const cardMainStyle = {
+  position: "relative",
+  zIndex: 2,
+  display: "flex",
+  alignItems: "center",
+  gap: "16px"
 };
 
 const imageWrapStyle = {
-  width: "76px",
-  height: "76px",
-  borderRadius: "22px",
+  width: "82px",
+  height: "82px",
+  borderRadius: "24px",
   overflow: "hidden",
   background: "rgba(168,85,247,0.16)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  boxShadow: "0 0 24px rgba(168,85,247,0.24)"
+  boxShadow: "0 0 28px rgba(168,85,247,0.28)",
+  flexShrink: 0
 };
 
 const imageStyle = {
@@ -1018,64 +1166,71 @@ const imageStyle = {
 };
 
 const fallbackStyle = {
-  fontWeight: "900",
-  fontSize: "22px",
+  fontWeight: "1000",
+  fontSize: "24px",
   color: "#e9d5ff"
 };
 
-const cardBadgesStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
-  alignItems: "flex-end"
-};
-
-const trendBadgeStyle = {
-  fontSize: "10px",
-  fontWeight: "1000",
-  color: "#fed7aa",
-  border: "1px solid rgba(251,146,60,0.22)",
-  background: "rgba(251,146,60,0.12)",
-  padding: "7px 9px",
-  borderRadius: "999px"
-};
-
-const statusBadgeStyle = {
-  fontSize: "11px",
-  fontWeight: "900",
-  color: "#d8b4fe",
-  border: "1px solid rgba(192,132,252,0.2)",
-  background: "rgba(168,85,247,0.12)",
-  padding: "8px 10px",
-  borderRadius: "999px"
-};
-
-const tokenTitleRowStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "14px",
-  alignItems: "flex-start"
+const tokenMetaStyle = {
+  minWidth: 0
 };
 
 const cardSymbolStyle = {
-  fontSize: "32px",
-  margin: "0 0 6px",
-  fontWeight: "950"
+  fontSize: "36px",
+  lineHeight: 1,
+  margin: "0 0 8px",
+  fontWeight: "1000",
+  letterSpacing: "-1px"
 };
 
 const cardNameStyle = {
   color: "#d6d3e4",
-  margin: 0
+  margin: 0,
+  fontSize: "15px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis"
 };
 
-const priceMiniStyle = {
+const marketFocusStyle = {
+  position: "relative",
+  zIndex: 2,
+  marginTop: "20px",
+  padding: "16px",
+  borderRadius: "20px",
+  background:
+    "linear-gradient(135deg, rgba(168,85,247,0.13), rgba(255,255,255,0.04))",
+  border: "1px solid rgba(192,132,252,0.16)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px"
+};
+
+const marketLabelStyle = {
+  display: "block",
+  color: "#a5a0b8",
+  fontSize: "11px",
+  fontWeight: "900",
+  marginBottom: "6px"
+};
+
+const marketValueStyle = {
+  fontSize: "24px",
+  fontWeight: "1000",
+  color: "white"
+};
+
+const priceBoxStyle = {
   textAlign: "right",
   color: "#a5a0b8",
   fontSize: "11px",
-  fontWeight: "800"
+  fontWeight: "900"
 };
 
 const descriptionStyle = {
+  position: "relative",
+  zIndex: 2,
   color: "#918ba3",
   fontSize: "14px",
   lineHeight: "1.45",
@@ -1083,11 +1238,52 @@ const descriptionStyle = {
   marginTop: "14px"
 };
 
+const activityStripStyle = {
+  position: "relative",
+  zIndex: 2,
+  marginTop: "16px",
+  background: "rgba(0,0,0,0.2)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  borderRadius: "18px",
+  padding: "12px"
+};
+
+const activityTopStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  color: "#bdb7cd",
+  fontSize: "12px",
+  marginBottom: "8px"
+};
+
+const activityBarOuterStyle = {
+  height: "8px",
+  background: "rgba(239,68,68,0.22)",
+  borderRadius: "999px",
+  overflow: "hidden"
+};
+
+const activityBarInnerStyle = {
+  height: "100%",
+  background: "linear-gradient(90deg, #22c55e, #86efac)",
+  boxShadow: "0 0 18px rgba(134,239,172,0.55)"
+};
+
+const activityBottomStyle = {
+  marginTop: "8px",
+  display: "flex",
+  justifyContent: "space-between",
+  color: "#8f8a9f",
+  fontSize: "12px"
+};
+
 const cardStatsGridStyle = {
+  position: "relative",
+  zIndex: 2,
   display: "grid",
   gridTemplateColumns: "repeat(2, 1fr)",
   gap: "10px",
-  marginTop: "18px"
+  marginTop: "16px"
 };
 
 const miniStatStyle = {
@@ -1101,6 +1297,8 @@ const miniStatStyle = {
 };
 
 const miniProgressInfoStyle = {
+  position: "relative",
+  zIndex: 2,
   marginTop: "18px",
   marginBottom: "8px",
   display: "flex",
@@ -1110,7 +1308,9 @@ const miniProgressInfoStyle = {
 };
 
 const miniProgressOuterStyle = {
-  height: "9px",
+  position: "relative",
+  zIndex: 2,
+  height: "10px",
   background: "rgba(255,255,255,0.08)",
   borderRadius: "999px",
   overflow: "hidden"
@@ -1119,13 +1319,34 @@ const miniProgressOuterStyle = {
 const miniProgressInnerStyle = {
   height: "100%",
   background: "linear-gradient(90deg, #7c3aed, #a855f7, #c084fc)",
-  boxShadow: "0 0 20px rgba(192,132,252,0.75)"
+  boxShadow: "0 0 22px rgba(192,132,252,0.85)"
 };
 
 const cardFooterStyle = {
+  position: "relative",
+  zIndex: 2,
   display: "flex",
   justifyContent: "space-between",
+  alignItems: "center",
   color: "#8f8a9f",
   fontSize: "13px",
   marginTop: "18px"
+};
+
+const poolLabelStyle = {
+  display: "block",
+  color: "#6f6a7f",
+  fontSize: "10px",
+  fontWeight: "900",
+  marginBottom: "3px"
+};
+
+const openButtonStyle = {
+  background: "rgba(168,85,247,0.13)",
+  border: "1px solid rgba(192,132,252,0.2)",
+  color: "#e9d5ff",
+  padding: "10px 12px",
+  borderRadius: "13px",
+  cursor: "pointer",
+  fontWeight: "900"
 };

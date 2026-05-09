@@ -30,6 +30,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [tokens, setTokens] = useState([]);
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("latestTrade");
   const [hoveredCard, setHoveredCard] = useState(null);
 
   useEffect(() => {
@@ -105,7 +106,7 @@ export default function Home() {
         return sum;
       }, 0);
 
-      const buyers = new Set(
+      const holders = new Set(
         rows
           .filter((trade) => trade.wallet_address)
           .map((trade) => trade.wallet_address.toLowerCase())
@@ -114,14 +115,16 @@ export default function Home() {
       return {
         trades: rows.length,
         volume,
-        holders: buyers.size
+        holders: holders.size,
+        lastTradeAt: rows[0]?.created_at || null
       };
     } catch (err) {
       console.error(err);
       return {
         trades: 0,
         volume: 0,
-        holders: 0
+        holders: 0,
+        lastTradeAt: null
       };
     }
   }
@@ -145,6 +148,7 @@ export default function Home() {
       website: item.website || null,
       telegram: item.telegram || null,
       twitter: item.twitter || null,
+      createdAt: item.created_at || item.createdAt || null,
       price: stats.price,
       reserve: stats.reserve,
       sold: stats.sold,
@@ -153,7 +157,8 @@ export default function Home() {
       ignited: stats.ignited,
       trades: tradeStats.trades,
       volume: tradeStats.volume,
-      holders: tradeStats.holders
+      holders: tradeStats.holders,
+      lastTradeAt: tradeStats.lastTradeAt
     };
   }
 
@@ -191,7 +196,8 @@ export default function Home() {
           pool: item.pool,
           creator: item.creator,
           name: item.name,
-          symbol: item.symbol
+          symbol: item.symbol,
+          createdAt: Number(item.createdAt || 0)
         });
       }
 
@@ -322,9 +328,11 @@ export default function Home() {
       );
     })
     .sort((a, b) => {
-      if (b.ignited !== a.ignited) return Number(b.ignited) - Number(a.ignited);
-      if ((b.volume || 0) !== (a.volume || 0)) return b.volume - a.volume;
-      return b.progress - a.progress;
+      if (sortBy === "marketCap") return Number(b.marketCap || 0) - Number(a.marketCap || 0);
+      if (sortBy === "newest") return getTime(b.createdAt) - getTime(a.createdAt);
+      if (sortBy === "oldest") return getTime(a.createdAt) - getTime(b.createdAt);
+
+      return getTime(b.lastTradeAt || b.createdAt) - getTime(a.lastTradeAt || a.createdAt);
     });
 
   const totalVolume = tokens.reduce(
@@ -363,71 +371,43 @@ export default function Home() {
               }
               style={ghostButtonStyle}
             >
-              Explore
+              Terminal
             </button>
 
-            <button
-              onClick={() =>
-                document
-                  .getElementById("tokens")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
-              style={ghostButtonStyle}
-            >
-              Trending
-            </button>
+            <button style={ghostButtonStyle}>Leaderboard</button>
 
             <button onClick={() => setShowCreate(true)} style={launchButtonStyle}>
-              Launch Token
+              Create
             </button>
+
+            <button style={connectButtonStyle}>Connect</button>
           </div>
         </nav>
 
-        <section style={heroStyle}>
+        <section style={bannerStyle}>
           <div>
             <div style={badgeStyle}>⚡ MONAD TESTNET LIVE</div>
 
             <h1 style={heroTitleStyle}>
-              Launch. Trade. <span style={purpleTextStyle}>Ignite.</span>
+              Launch tokens. Trade early. <span style={purpleTextStyle}>Ignite.</span>
             </h1>
 
             <p style={heroTextStyle}>
-              Create meme tokens on Monad, trade through bonding, and push them
-              toward ignition.
+              A clean meme launchpad for Monad testnet. Create, discover and trade
+              tokens before ignition.
             </p>
-
-            <div style={heroButtonsStyle}>
-              <button onClick={() => setShowCreate(true)} style={mainCtaStyle}>
-                Create Token
-              </button>
-
-              <button
-                onClick={() =>
-                  document
-                    .getElementById("tokens")
-                    ?.scrollIntoView({ behavior: "smooth" })
-                }
-                style={secondaryCtaStyle}
-              >
-                View Live Market
-              </button>
-            </div>
           </div>
 
-          <div style={heroMarketCardStyle}>
-            <div style={heroMarketTopStyle}>
-              <span>FUZE TESTNET MARKET</span>
+          <div style={marketBoxStyle}>
+            <div style={marketBoxTopStyle}>
+              <span>FUZE MARKET</span>
               <strong>LIVE</strong>
             </div>
 
-            <div style={heroBigNumberStyle}>{tokens.length}</div>
-            <div style={heroBigLabelStyle}>Live launches</div>
-
-            <div style={heroStatsGridStyle}>
+            <div style={marketStatsRowStyle}>
+              <HeroStat label="Launches" value={tokens.length} />
               <HeroStat label="Volume" value={`${shortNum(totalVolume)} MON`} />
               <HeroStat label="Trades" value={shortNum(totalTrades)} />
-              <HeroStat label="Create Fee" value={`${CREATE_FEE} MON`} />
-              <HeroStat label="Ignite" value={`${IGNITION_TARGET_MON} MON`} />
             </div>
           </div>
         </section>
@@ -516,11 +496,8 @@ export default function Home() {
         <section id="tokens" style={tokensSectionStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <div style={sectionEyebrowStyle}>LIVE MARKET</div>
-              <h2 style={sectionTitleStyle}>Trending Launches</h2>
-              <p style={sectionSubStyle}>
-                Clean launch overview with the most important market data.
-              </p>
+              <h2 style={sectionTitleStyle}>Trending Now</h2>
+              <p style={sectionSubStyle}>Fresh FUZE launches ranked by market activity.</p>
             </div>
 
             <input
@@ -529,6 +506,48 @@ export default function Home() {
               placeholder="Search token..."
               style={searchStyle}
             />
+          </div>
+
+          <div style={tabsRowStyle}>
+            <button
+              onClick={() => setSortBy("latestTrade")}
+              style={{
+                ...tabButtonStyle,
+                ...(sortBy === "latestTrade" ? activeTabStyle : {})
+              }}
+            >
+              Latest Trade
+            </button>
+
+            <button
+              onClick={() => setSortBy("marketCap")}
+              style={{
+                ...tabButtonStyle,
+                ...(sortBy === "marketCap" ? activeTabStyle : {})
+              }}
+            >
+              Market Cap
+            </button>
+
+            <button
+              onClick={() => setSortBy("newest")}
+              style={{
+                ...tabButtonStyle,
+                ...(sortBy === "newest" ? activeTabStyle : {})
+              }}
+            >
+              Newest Created
+            </button>
+
+            <button
+              onClick={() => setSortBy("oldest")}
+              style={{
+                ...tabButtonStyle,
+                ...(sortBy === "oldest" ? activeTabStyle : {})
+              }}
+            >
+              Oldest Created
+            </button>
           </div>
 
           <div style={gridStyle}>
@@ -543,68 +562,50 @@ export default function Home() {
                   ...(hoveredCard === token.pool ? cardHoverStyle : {})
                 }}
               >
-                <div style={cardTopStyle}>
-                  <div style={cardIdentityStyle}>
-                    <div style={imageWrapStyle}>
-                      {token.imageUrl ? (
-                        <img
-                          src={token.imageUrl}
-                          alt={token.symbol}
-                          style={imageStyle}
-                        />
-                      ) : (
-                        <span style={fallbackStyle}>
-                          {token.symbol?.slice(0, 2)}
-                        </span>
-                      )}
-                    </div>
+                <div style={cardImageWrapStyle}>
+                  {token.imageUrl ? (
+                    <img src={token.imageUrl} alt={token.symbol} style={cardImageStyle} />
+                  ) : (
+                    <span style={fallbackStyle}>{token.symbol?.slice(0, 2)}</span>
+                  )}
 
-                    <div style={cardTextStyle}>
-                      <div style={rankStyle}>#{index + 1}</div>
+                  <div style={cardStatusStyle}>
+                    {token.ignited ? "IGNITED" : `${token.progress.toFixed(1)}%`}
+                  </div>
+                </div>
+
+                <div style={cardBodyStyle}>
+                  <div style={cardTopLineStyle}>
+                    <div>
                       <h3 style={cardSymbolStyle}>{token.symbol}</h3>
                       <p style={cardNameStyle}>{token.name}</p>
                     </div>
+
+                    <span style={rankStyle}>#{index + 1}</span>
                   </div>
 
-                  <span
-                    style={{
-                      ...statusBadgeStyle,
-                      ...(token.ignited ? ignitedBadgeStyle : {})
-                    }}
-                  >
-                    {token.ignited ? "IGNITED" : `${token.progress.toFixed(1)}%`}
-                  </span>
-                </div>
+                  {token.description && (
+                    <p style={descriptionStyle}>{token.description}</p>
+                  )}
 
-                {token.description && (
-                  <p style={descriptionStyle}>{token.description}</p>
-                )}
+                  <div style={cardMetricsStyle}>
+                    <Metric label="MCap" value={`${shortNum(token.marketCap)} MON`} />
+                    <Metric label="Vol" value={`${shortNum(token.volume)} MON`} />
+                  </div>
 
-                <div style={simpleStatsStyle}>
-                  <MiniStat label="MCAP" value={`${shortNum(token.marketCap)} MON`} />
-                  <MiniStat label="VOL" value={`${shortNum(token.volume)} MON`} />
-                  <MiniStat label="TRADES" value={shortNum(token.trades)} />
-                </div>
+                  <div style={progressInfoStyle}>
+                    <span>Bonding</span>
+                    <strong>{token.progress.toFixed(2)}%</strong>
+                  </div>
 
-                <div style={miniProgressInfoStyle}>
-                  <span>Bonding</span>
-                  <strong>{token.progress.toFixed(2)}%</strong>
-                </div>
-
-                <div style={miniProgressOuterStyle}>
-                  <div
-                    style={{
-                      ...miniProgressInnerStyle,
-                      width: `${token.progress || 0}%`
-                    }}
-                  />
-                </div>
-
-                <div style={cardFooterStyle}>
-                  <span>
-                    {token.pool.slice(0, 6)}...{token.pool.slice(-4)}
-                  </span>
-                  <strong>Open →</strong>
+                  <div style={progressOuterStyle}>
+                    <div
+                      style={{
+                        ...progressInnerStyle,
+                        width: `${token.progress || 0}%`
+                      }}
+                    />
+                  </div>
                 </div>
               </article>
             ))}
@@ -624,9 +625,9 @@ function HeroStat({ label, value }) {
   );
 }
 
-function MiniStat({ label, value }) {
+function Metric({ label, value }) {
   return (
-    <div style={miniStatStyle}>
+    <div style={metricStyle}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -649,35 +650,47 @@ function shortNum(value) {
   });
 }
 
+function getTime(value) {
+  if (!value) return 0;
+
+  if (typeof value === "number") {
+    if (value < 10_000_000_000) return value * 1000;
+    return value;
+  }
+
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 const pageStyle = {
   minHeight: "100vh",
   position: "relative",
   overflow: "hidden",
   background:
-    "radial-gradient(circle at top left, #2b0b4f 0%, #08070d 35%, #030305 100%)",
+    "radial-gradient(circle at top left, #251044 0%, #08070d 34%, #030305 100%)",
   color: "white",
   fontFamily: "Inter, Arial, sans-serif",
-  padding: "28px"
+  padding: "24px"
 };
 
 const bgGlowOne = {
   position: "fixed",
-  width: "540px",
-  height: "540px",
+  width: "520px",
+  height: "520px",
   top: "-170px",
   right: "-110px",
-  background: "rgba(168,85,247,0.30)",
+  background: "rgba(168,85,247,0.24)",
   filter: "blur(120px)",
   pointerEvents: "none"
 };
 
 const bgGlowTwo = {
   position: "fixed",
-  width: "440px",
-  height: "440px",
+  width: "420px",
+  height: "420px",
   bottom: "-150px",
   left: "-120px",
-  background: "rgba(124,58,237,0.24)",
+  background: "rgba(124,58,237,0.18)",
   filter: "blur(120px)",
   pointerEvents: "none"
 };
@@ -686,91 +699,107 @@ const gridOverlayStyle = {
   position: "fixed",
   inset: 0,
   backgroundImage:
-    "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)",
-  backgroundSize: "56px 56px",
-  maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent 75%)",
+    "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)",
+  backgroundSize: "54px 54px",
+  maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.65), transparent 70%)",
   pointerEvents: "none"
 };
 
 const containerStyle = {
-  maxWidth: "1320px",
+  maxWidth: "1240px",
   margin: "0 auto",
   position: "relative",
   zIndex: 2
 };
 
 const navStyle = {
-  height: "76px",
+  height: "68px",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  background: "rgba(10,10,18,0.72)",
-  border: "1px solid rgba(192,132,252,0.18)",
-  borderRadius: "24px",
-  padding: "10px 18px",
+  background: "rgba(10,10,18,0.76)",
+  border: "1px solid rgba(192,132,252,0.16)",
+  borderRadius: "22px",
+  padding: "9px 14px",
   backdropFilter: "blur(18px)",
-  boxShadow: "0 0 40px rgba(168,85,247,0.12)"
+  boxShadow: "0 0 34px rgba(168,85,247,0.10)"
 };
 
 const brandStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "14px"
+  gap: "12px"
 };
 
 const logoStyle = {
-  width: "52px",
-  height: "52px",
-  borderRadius: "16px",
+  width: "48px",
+  height: "48px",
+  borderRadius: "15px",
   objectFit: "cover",
-  boxShadow: "0 0 28px rgba(168,85,247,0.55)"
+  boxShadow: "0 0 24px rgba(168,85,247,0.45)"
 };
 
 const brandNameStyle = {
-  fontSize: "24px",
-  fontWeight: "900",
+  fontSize: "23px",
+  fontWeight: "950",
   letterSpacing: "1px"
 };
 
 const brandSubStyle = {
-  fontSize: "12px",
+  fontSize: "11px",
   color: "#c4b5fd",
-  marginTop: "2px"
+  marginTop: "1px"
 };
 
 const navActionsStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "10px"
+  gap: "8px"
 };
 
 const ghostButtonStyle = {
   background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.1)",
+  border: "1px solid rgba(255,255,255,0.09)",
   color: "#ddd6fe",
-  padding: "12px 16px",
-  borderRadius: "14px",
+  padding: "11px 14px",
+  borderRadius: "13px",
   cursor: "pointer",
-  fontWeight: "700"
+  fontWeight: "800"
 };
 
 const launchButtonStyle = {
   background: "linear-gradient(135deg, #7c3aed, #c084fc)",
   border: "none",
   color: "white",
-  padding: "13px 18px",
-  borderRadius: "14px",
+  padding: "12px 16px",
+  borderRadius: "13px",
   cursor: "pointer",
-  fontWeight: "900",
-  boxShadow: "0 0 24px rgba(168,85,247,0.45)"
+  fontWeight: "950",
+  boxShadow: "0 0 22px rgba(168,85,247,0.42)"
 };
 
-const heroStyle = {
+const connectButtonStyle = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(192,132,252,0.18)",
+  color: "#e9d5ff",
+  padding: "12px 16px",
+  borderRadius: "13px",
+  cursor: "pointer",
+  fontWeight: "900"
+};
+
+const bannerStyle = {
+  marginTop: "24px",
+  background:
+    "linear-gradient(135deg, rgba(168,85,247,0.16), rgba(255,255,255,0.045))",
+  border: "1px solid rgba(192,132,252,0.2)",
+  borderRadius: "30px",
+  padding: "34px",
   display: "grid",
-  gridTemplateColumns: "1.1fr 0.9fr",
-  gap: "44px",
+  gridTemplateColumns: "1.25fr 0.75fr",
+  gap: "28px",
   alignItems: "center",
-  padding: "82px 0 72px"
+  boxShadow: "0 0 70px rgba(168,85,247,0.12)"
 };
 
 const badgeStyle = {
@@ -779,37 +808,63 @@ const badgeStyle = {
   background: "rgba(168,85,247,0.14)",
   border: "1px solid rgba(192,132,252,0.25)",
   borderRadius: "999px",
-  padding: "10px 14px",
-  fontSize: "13px",
-  fontWeight: "900",
-  marginBottom: "22px"
+  padding: "9px 13px",
+  fontSize: "12px",
+  fontWeight: "950",
+  marginBottom: "18px"
 };
 
 const heroTitleStyle = {
-  fontSize: "82px",
-  lineHeight: "0.95",
+  fontSize: "58px",
+  lineHeight: "0.96",
   margin: 0,
-  letterSpacing: "-4px",
+  letterSpacing: "-3px",
   fontWeight: "1000"
 };
 
 const purpleTextStyle = {
   color: "#c084fc",
-  textShadow: "0 0 40px rgba(192,132,252,0.9)"
+  textShadow: "0 0 34px rgba(192,132,252,0.75)"
 };
 
 const heroTextStyle = {
-  maxWidth: "650px",
+  maxWidth: "640px",
   color: "#b8b4c7",
-  fontSize: "20px",
+  fontSize: "18px",
   lineHeight: "1.55",
-  margin: "28px 0 0"
+  margin: "22px 0 0"
 };
 
-const heroButtonsStyle = {
+const marketBoxStyle = {
+  background: "rgba(0,0,0,0.2)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "24px",
+  padding: "20px"
+};
+
+const marketBoxTopStyle = {
   display: "flex",
-  gap: "14px",
-  marginTop: "34px"
+  justifyContent: "space-between",
+  color: "#c4b5fd",
+  fontSize: "12px",
+  fontWeight: "950",
+  marginBottom: "14px"
+};
+
+const marketStatsRowStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, 1fr)",
+  gap: "10px"
+};
+
+const heroStatStyle = {
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  borderRadius: "17px",
+  padding: "13px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "7px"
 };
 
 const mainCtaStyle = {
@@ -822,66 +877,6 @@ const mainCtaStyle = {
   cursor: "pointer",
   fontWeight: "900",
   boxShadow: "0 0 30px rgba(168,85,247,0.45)"
-};
-
-const secondaryCtaStyle = {
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.14)",
-  color: "#ddd6fe",
-  padding: "16px 24px",
-  borderRadius: "16px",
-  fontSize: "16px",
-  cursor: "pointer",
-  fontWeight: "800"
-};
-
-const heroMarketCardStyle = {
-  background:
-    "linear-gradient(180deg, rgba(168,85,247,0.18), rgba(255,255,255,0.04))",
-  border: "1px solid rgba(192,132,252,0.24)",
-  borderRadius: "32px",
-  padding: "28px",
-  boxShadow: "0 0 80px rgba(168,85,247,0.18)"
-};
-
-const heroMarketTopStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  color: "#c4b5fd",
-  fontSize: "13px",
-  fontWeight: "900"
-};
-
-const heroBigNumberStyle = {
-  marginTop: "28px",
-  fontSize: "96px",
-  lineHeight: 1,
-  fontWeight: "1000",
-  letterSpacing: "-5px"
-};
-
-const heroBigLabelStyle = {
-  color: "#a5a0b8",
-  fontSize: "18px",
-  marginTop: "10px"
-};
-
-const heroStatsGridStyle = {
-  marginTop: "28px",
-  display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "12px"
-};
-
-const heroStatStyle = {
-  background: "rgba(0,0,0,0.22)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "20px",
-  padding: "16px",
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px"
 };
 
 const modalOverlayStyle = {
@@ -951,6 +946,7 @@ const fileInputStyle = {
 };
 
 const tokensSectionStyle = {
+  paddingTop: "36px",
   paddingBottom: "90px"
 };
 
@@ -959,49 +955,66 @@ const sectionHeaderStyle = {
   justifyContent: "space-between",
   alignItems: "end",
   gap: "20px",
-  marginBottom: "24px"
-};
-
-const sectionEyebrowStyle = {
-  color: "#c084fc",
-  fontWeight: "900",
-  fontSize: "13px",
-  marginBottom: "8px"
+  marginBottom: "16px"
 };
 
 const sectionTitleStyle = {
-  fontSize: "44px",
+  fontSize: "36px",
   margin: 0,
-  letterSpacing: "-1.5px"
+  letterSpacing: "-1px"
 };
 
 const sectionSubStyle = {
   color: "#a5a0b8",
-  margin: "8px 0 0"
+  margin: "7px 0 0"
 };
 
 const searchStyle = {
-  width: "340px",
-  padding: "15px 16px",
-  borderRadius: "16px",
+  width: "320px",
+  padding: "14px 15px",
+  borderRadius: "15px",
   border: "1px solid rgba(192,132,252,0.18)",
   background: "rgba(255,255,255,0.055)",
   color: "white",
   outline: "none"
 };
 
+const tabsRowStyle = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginBottom: "20px"
+};
+
+const tabButtonStyle = {
+  background: "rgba(255,255,255,0.045)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "#a5a0b8",
+  padding: "11px 14px",
+  borderRadius: "999px",
+  cursor: "pointer",
+  fontWeight: "850"
+};
+
+const activeTabStyle = {
+  color: "#fff",
+  background: "rgba(168,85,247,0.18)",
+  border: "1px solid rgba(192,132,252,0.28)",
+  boxShadow: "0 0 18px rgba(168,85,247,0.18)"
+};
+
 const gridStyle = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(255px, 1fr))",
   gap: "18px"
 };
 
 const cardStyle = {
+  overflow: "hidden",
   background:
-    "linear-gradient(180deg, rgba(255,255,255,0.072), rgba(255,255,255,0.032))",
+    "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.032))",
   border: "1px solid rgba(192,132,252,0.14)",
-  borderRadius: "26px",
-  padding: "20px",
+  borderRadius: "24px",
   cursor: "pointer",
   transition: "0.22s ease",
   boxShadow: "0 0 34px rgba(168,85,247,0.07)",
@@ -1014,60 +1027,56 @@ const cardHoverStyle = {
   boxShadow: "0 20px 60px rgba(168,85,247,0.18)"
 };
 
-const cardTopStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "14px"
-};
-
-const cardIdentityStyle = {
+const cardImageWrapStyle = {
+  position: "relative",
+  height: "185px",
+  background: "rgba(168,85,247,0.12)",
   display: "flex",
   alignItems: "center",
-  gap: "14px",
-  minWidth: 0
+  justifyContent: "center"
 };
 
-const imageWrapStyle = {
-  width: "66px",
-  height: "66px",
-  borderRadius: "20px",
-  overflow: "hidden",
-  background: "rgba(168,85,247,0.16)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "0 0 22px rgba(168,85,247,0.22)",
-  flexShrink: 0
-};
-
-const imageStyle = {
+const cardImageStyle = {
   width: "100%",
   height: "100%",
   objectFit: "cover"
 };
 
 const fallbackStyle = {
-  fontWeight: "900",
-  fontSize: "22px",
+  fontWeight: "1000",
+  fontSize: "32px",
   color: "#e9d5ff"
 };
 
-const cardTextStyle = {
-  minWidth: 0
+const cardStatusStyle = {
+  position: "absolute",
+  top: "12px",
+  right: "12px",
+  background: "rgba(8,7,13,0.72)",
+  border: "1px solid rgba(192,132,252,0.24)",
+  color: "#e9d5ff",
+  padding: "8px 10px",
+  borderRadius: "999px",
+  fontSize: "11px",
+  fontWeight: "950",
+  backdropFilter: "blur(12px)"
 };
 
-const rankStyle = {
-  color: "#c084fc",
-  fontSize: "11px",
-  fontWeight: "900",
-  marginBottom: "4px"
+const cardBodyStyle = {
+  padding: "16px"
+};
+
+const cardTopLineStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "flex-start"
 };
 
 const cardSymbolStyle = {
   fontSize: "28px",
   margin: "0 0 5px",
-  fontWeight: "950",
+  fontWeight: "1000",
   letterSpacing: "-0.8px"
 };
 
@@ -1078,43 +1087,36 @@ const cardNameStyle = {
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
-  maxWidth: "160px"
+  maxWidth: "175px"
 };
 
-const statusBadgeStyle = {
-  fontSize: "11px",
-  fontWeight: "900",
-  color: "#d8b4fe",
-  border: "1px solid rgba(192,132,252,0.2)",
-  background: "rgba(168,85,247,0.12)",
-  padding: "8px 10px",
-  borderRadius: "999px",
-  flexShrink: 0
-};
-
-const ignitedBadgeStyle = {
-  color: "#86efac",
-  border: "1px solid rgba(134,239,172,0.24)",
-  background: "rgba(34,197,94,0.12)"
+const rankStyle = {
+  color: "#c084fc",
+  fontSize: "12px",
+  fontWeight: "950"
 };
 
 const descriptionStyle = {
   color: "#918ba3",
-  fontSize: "14px",
+  fontSize: "13px",
   lineHeight: "1.45",
-  minHeight: "38px",
-  marginTop: "16px",
-  marginBottom: 0
+  minHeight: "36px",
+  marginTop: "12px",
+  marginBottom: 0,
+  display: "-webkit-box",
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: "vertical",
+  overflow: "hidden"
 };
 
-const simpleStatsStyle = {
+const cardMetricsStyle = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
-  gap: "8px",
-  marginTop: "16px"
+  gridTemplateColumns: "repeat(2, 1fr)",
+  gap: "9px",
+  marginTop: "14px"
 };
 
-const miniStatStyle = {
+const metricStyle = {
   background: "rgba(0,0,0,0.2)",
   border: "1px solid rgba(255,255,255,0.065)",
   borderRadius: "14px",
@@ -1125,8 +1127,8 @@ const miniStatStyle = {
   minWidth: 0
 };
 
-const miniProgressInfoStyle = {
-  marginTop: "16px",
+const progressInfoStyle = {
+  marginTop: "14px",
   marginBottom: "8px",
   display: "flex",
   justifyContent: "space-between",
@@ -1134,24 +1136,15 @@ const miniProgressInfoStyle = {
   fontSize: "13px"
 };
 
-const miniProgressOuterStyle = {
+const progressOuterStyle = {
   height: "8px",
   background: "rgba(255,255,255,0.08)",
   borderRadius: "999px",
   overflow: "hidden"
 };
 
-const miniProgressInnerStyle = {
+const progressInnerStyle = {
   height: "100%",
   background: "linear-gradient(90deg, #7c3aed, #c084fc)",
   boxShadow: "0 0 18px rgba(192,132,252,0.75)"
-};
-
-const cardFooterStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  color: "#8f8a9f",
-  fontSize: "13px",
-  marginTop: "16px"
 };

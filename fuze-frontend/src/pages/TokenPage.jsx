@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
-
-import Header from "../components/Header";
 
 import {
   FACTORY_ADDRESS,
@@ -12,13 +10,18 @@ import {
   IGNITION_TARGET_MON
 } from "../lib/contracts";
 
+import { supabase } from "../lib/supabase";
+
 const RPC_URL = "https://testnet-rpc.monad.xyz";
 
 export default function TokenPage() {
   const { poolAddress } = useParams();
+  const navigate = useNavigate();
 
   const [token, setToken] = useState(null);
   const [poolStats, setPoolStats] = useState(null);
+  const [wallet, setWallet] = useState("");
+  const [tokenBalance, setTokenBalance] = useState("0");
 
   const [buyAmount, setBuyAmount] = useState("0.01");
   const [sellAmount, setSellAmount] = useState("");
@@ -26,39 +29,58 @@ export default function TokenPage() {
   const [buyLoading, setBuyLoading] = useState(false);
   const [sellLoading, setSellLoading] = useState(false);
 
-  const [wallet, setWallet] = useState("");
-  const [tokenBalance, setTokenBalance] = useState("0");
-
   useEffect(() => {
     loadTokenAndStats();
   }, [poolAddress]);
 
   async function loadTokenAndStats() {
     try {
-      const provider = new ethers.JsonRpcProvider(RPC_URL);
-
-      const factory = new ethers.Contract(
-        FACTORY_ADDRESS,
-        FACTORY_READ_ABI,
-        provider
-      );
-
-      const total = await factory.totalTokens();
       let found = null;
 
-      for (let i = 0; i < Number(total); i++) {
-        const item = await factory.allTokens(i);
+      const { data } = await supabase
+        .from("tokens")
+        .select("*")
+        .eq("pool_address", poolAddress)
+        .maybeSingle();
 
-        if (item.pool.toLowerCase() === poolAddress.toLowerCase()) {
-          found = {
-            token: item.token,
-            pool: item.pool,
-            creator: item.creator,
-            name: item.name,
-            symbol: item.symbol,
-            createdAt: item.createdAt
-          };
-          break;
+      if (data) {
+        found = {
+          token: data.token_address,
+          pool: data.pool_address,
+          creator: data.creator_address,
+          name: data.name,
+          symbol: data.symbol,
+          description: data.description,
+          imageUrl: data.image_url,
+          website: data.website,
+          telegram: data.telegram,
+          twitter: data.twitter
+        };
+      }
+
+      if (!found) {
+        const provider = new ethers.JsonRpcProvider(RPC_URL);
+        const factory = new ethers.Contract(
+          FACTORY_ADDRESS,
+          FACTORY_READ_ABI,
+          provider
+        );
+
+        const total = await factory.totalTokens();
+
+        for (let i = 0; i < Number(total); i++) {
+          const item = await factory.allTokens(i);
+
+          if (item.pool.toLowerCase() === poolAddress.toLowerCase()) {
+            found = {
+              token: item.token,
+              pool: item.pool,
+              creator: item.creator,
+              name: item.name,
+              symbol: item.symbol
+            };
+            break;
+          }
         }
       }
 
@@ -69,6 +91,7 @@ export default function TokenPage() {
 
       setToken(found);
 
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
       const pool = new ethers.Contract(found.pool, POOL_ABI, provider);
 
       const price = await pool.currentPrice();
@@ -98,7 +121,7 @@ export default function TokenPage() {
     }
   }
 
-  async function connectAndLoadWallet() {
+  async function connectWallet() {
     if (!window.ethereum) {
       alert("MetaMask niet gevonden");
       return;
@@ -125,7 +148,6 @@ export default function TokenPage() {
       );
 
       const balance = await tokenContract.balanceOf(walletAddress);
-
       setTokenBalance(ethers.formatUnits(balance, 18));
     } catch (err) {
       console.error(err);
@@ -151,8 +173,8 @@ export default function TokenPage() {
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-
       const address = await signer.getAddress();
+
       setWallet(address);
 
       const pool = new ethers.Contract(token.pool, POOL_ABI, signer);
@@ -193,8 +215,8 @@ export default function TokenPage() {
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-
       const address = await signer.getAddress();
+
       setWallet(address);
 
       const tokenContract = new ethers.Contract(
@@ -227,278 +249,595 @@ export default function TokenPage() {
     }
   }
 
+  if (!token) {
+    return (
+      <main style={pageStyle}>
+        <div style={containerStyle}>
+          <TopNav navigate={navigate} wallet={wallet} connectWallet={connectWallet} />
+          <section style={panelStyle}>
+            <h1>Token not found</h1>
+            <p style={{ color: "#a5a0b8" }}>{poolAddress}</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main style={pageStyle}>
+      <div style={glowOne} />
+      <div style={glowTwo} />
+
       <div style={containerStyle}>
-        <Header />
+        <TopNav navigate={navigate} wallet={wallet} connectWallet={connectWallet} />
 
-        {!token && (
-          <div style={boxStyle}>
-            <h2>Token not found</h2>
-            <p style={{ opacity: 0.7 }}>Pool address: {poolAddress}</p>
-          </div>
-        )}
+        <button onClick={() => navigate("/")} style={backButtonStyle}>
+          ← Back to launches
+        </button>
 
-        {token && (
-          <div style={layoutStyle}>
-            <section style={panelStyle}>
-              <h2 style={titleStyle}>{token.symbol}</h2>
+        <section style={heroGridStyle}>
+          <div style={leftPanelStyle}>
+            <div style={tokenHeaderStyle}>
+              <div style={tokenImageWrapStyle}>
+                {token.imageUrl ? (
+                  <img src={token.imageUrl} alt={token.symbol} style={tokenImageStyle} />
+                ) : (
+                  <span style={fallbackStyle}>{token.symbol?.slice(0, 2)}</span>
+                )}
+              </div>
 
-              <p style={subtitleStyle}>{token.name}</p>
-
-              <div style={{ marginTop: "32px" }}>
-                <p style={{ opacity: 0.7 }}>Bonding progress</p>
-
-                <div style={progressOuterStyle}>
-                  <div
-                    style={{
-                      ...progressInnerStyle,
-                      width: `${poolStats?.progress || 0}%`
-                    }}
-                  />
+              <div>
+                <div style={statusBadgeStyle}>
+                  {poolStats?.ignited ? "IGNITED 🔥" : "BONDING ⚡"}
                 </div>
 
-                <p style={{ marginTop: "10px" }}>
-                  {poolStats
-                    ? `${poolStats.progress.toFixed(2)}% bonded`
-                    : "Loading..."}
-                </p>
+                <h1 style={tokenTitleStyle}>{token.symbol}</h1>
+                <p style={tokenNameStyle}>{token.name}</p>
+              </div>
+            </div>
+
+            {token.description && (
+              <p style={descriptionStyle}>{token.description}</p>
+            )}
+
+            <div style={progressBlockStyle}>
+              <div style={progressTopStyle}>
+                <span>Bonding progress</span>
+                <strong>{poolStats ? `${poolStats.progress.toFixed(2)}%` : "-"}</strong>
               </div>
 
-              <div style={statsGridStyle}>
-                <Stat
-                  label="Price"
-                  value={`${poolStats?.price || "-"} MON`}
-                />
-
-                <Stat
-                  label="Reserve"
-                  value={`${poolStats?.reserve || "-"} MON`}
-                />
-
-                <Stat
-                  label="Tokens Sold"
-                  value={poolStats?.sold || "-"}
-                />
-
-                <Stat
-                  label="Status"
-                  value={poolStats?.ignited ? "IGNITED 🔥" : "Bonding"}
-                />
-              </div>
-            </section>
-
-            <aside style={panelStyle}>
-              <button onClick={connectAndLoadWallet} style={smallButtonStyle}>
-                {wallet
-                  ? wallet.slice(0, 6) + "..." + wallet.slice(-4)
-                  : "Connect Wallet"}
-              </button>
-
-              <p style={{ marginTop: "16px", opacity: 0.7 }}>
-                Balance: {Number(tokenBalance).toLocaleString()} {token.symbol}
-              </p>
-
-              <div style={tradeBoxStyle}>
-                <h3 style={buyTitleStyle}>Buy {token.symbol}</h3>
-
-                <input
-                  value={buyAmount}
-                  onChange={(e) => setBuyAmount(e.target.value)}
-                  placeholder="0.01"
-                  style={inputStyle}
-                />
-
-                <button
-                  onClick={buyToken}
-                  disabled={buyLoading || poolStats?.ignited}
+              <div style={progressOuterStyle}>
+                <div
                   style={{
-                    ...primaryButtonStyle,
-                    opacity: buyLoading || poolStats?.ignited ? 0.5 : 1
+                    ...progressInnerStyle,
+                    width: `${poolStats?.progress || 0}%`
                   }}
-                >
-                  {poolStats?.ignited
-                    ? "Bonding finished"
-                    : buyLoading
-                    ? "Buying..."
-                    : "Buy with MON"}
-                </button>
-              </div>
-
-              <div style={tradeBoxStyle}>
-                <h3 style={buyTitleStyle}>Sell {token.symbol}</h3>
-
-                <input
-                  value={sellAmount}
-                  onChange={(e) => setSellAmount(e.target.value)}
-                  placeholder={`Amount ${token.symbol}`}
-                  style={inputStyle}
                 />
-
-                <button
-                  onClick={sellToken}
-                  disabled={sellLoading || poolStats?.ignited}
-                  style={{
-                    ...sellButtonStyle,
-                    opacity: sellLoading || poolStats?.ignited ? 0.5 : 1
-                  }}
-                >
-                  {poolStats?.ignited
-                    ? "Bonding finished"
-                    : sellLoading
-                    ? "Selling..."
-                    : "Sell for MON"}
-                </button>
               </div>
+            </div>
 
-              <div style={addressBoxStyle}>
-                <p>Pool:</p>
-                <span>{token.pool}</span>
+            <div style={statsGridStyle}>
+              <Stat label="Price" value={`${shortNum(poolStats?.price)} MON`} />
+              <Stat label="Reserve" value={`${shortNum(poolStats?.reserve)} MON`} />
+              <Stat label="Tokens Sold" value={shortNum(poolStats?.sold)} />
+              <Stat label="Ignition Target" value={`${IGNITION_TARGET_MON} MON`} />
+            </div>
 
-                <p>Token:</p>
-                <span>{token.token}</span>
-              </div>
-            </aside>
+            <div style={linksRowStyle}>
+              {token.website && (
+                <a href={token.website} target="_blank" style={linkButtonStyle}>
+                  Website
+                </a>
+              )}
+              {token.telegram && (
+                <a href={token.telegram} target="_blank" style={linkButtonStyle}>
+                  Telegram
+                </a>
+              )}
+              {token.twitter && (
+                <a href={token.twitter} target="_blank" style={linkButtonStyle}>
+                  X / Twitter
+                </a>
+              )}
+            </div>
+
+            <div style={addressPanelStyle}>
+              <Address label="Token" value={token.token} />
+              <Address label="Pool" value={token.pool} />
+              <Address label="Creator" value={token.creator} />
+            </div>
           </div>
-        )}
+
+          <aside style={tradePanelStyle}>
+            <div style={tradeHeaderStyle}>
+              <div>
+                <h2 style={tradeTitleStyle}>Trade {token.symbol}</h2>
+                <p style={tradeSubStyle}>Buy or sell through the FUZE pool.</p>
+              </div>
+            </div>
+
+            <button onClick={connectWallet} style={walletButtonStyle}>
+              {wallet
+                ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}`
+                : "Connect Wallet"}
+            </button>
+
+            <div style={balanceBoxStyle}>
+              <span>Your balance</span>
+              <strong>
+                {Number(tokenBalance).toLocaleString()} {token.symbol}
+              </strong>
+            </div>
+
+            <div style={tradeBoxStyle}>
+              <div style={tradeLabelStyle}>Buy with MON</div>
+
+              <input
+                value={buyAmount}
+                onChange={(e) => setBuyAmount(e.target.value)}
+                placeholder="0.01"
+                style={inputStyle}
+              />
+
+              <button
+                onClick={buyToken}
+                disabled={buyLoading || poolStats?.ignited}
+                style={{
+                  ...buyButtonStyle,
+                  opacity: buyLoading || poolStats?.ignited ? 0.5 : 1
+                }}
+              >
+                {poolStats?.ignited
+                  ? "Bonding finished"
+                  : buyLoading
+                  ? "Buying..."
+                  : "Buy"}
+              </button>
+            </div>
+
+            <div style={tradeBoxStyle}>
+              <div style={tradeLabelStyle}>Sell tokens</div>
+
+              <input
+                value={sellAmount}
+                onChange={(e) => setSellAmount(e.target.value)}
+                placeholder={`Amount ${token.symbol}`}
+                style={inputStyle}
+              />
+
+              <button
+                onClick={sellToken}
+                disabled={sellLoading || poolStats?.ignited}
+                style={{
+                  ...sellButtonStyle,
+                  opacity: sellLoading || poolStats?.ignited ? 0.5 : 1
+                }}
+              >
+                {poolStats?.ignited
+                  ? "Bonding finished"
+                  : sellLoading
+                  ? "Selling..."
+                  : "Sell"}
+              </button>
+            </div>
+          </aside>
+        </section>
       </div>
     </main>
+  );
+}
+
+function TopNav({ navigate, wallet, connectWallet }) {
+  return (
+    <nav style={navStyle}>
+      <div onClick={() => navigate("/")} style={brandStyle}>
+        <img src="/logo.jpg" alt="Fuze" style={logoStyle} />
+        <div>
+          <div style={brandNameStyle}>FUZE</div>
+          <div style={brandSubStyle}>Monad Launchpad</div>
+        </div>
+      </div>
+
+      <button onClick={connectWallet} style={navWalletStyle}>
+        {wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : "Connect Wallet"}
+      </button>
+    </nav>
   );
 }
 
 function Stat({ label, value }) {
   return (
     <div style={statStyle}>
-      <p style={{ opacity: 0.6, marginBottom: "8px" }}>{label}</p>
-      <strong>{value}</strong>
+      <span>{label}</span>
+      <strong>{value || "-"}</strong>
     </div>
   );
 }
 
+function Address({ label, value }) {
+  async function copy() {
+    await navigator.clipboard.writeText(value);
+    alert(`${label} copied`);
+  }
+
+  return (
+    <div style={addressRowStyle}>
+      <span>{label}</span>
+      <button onClick={copy} style={addressButtonStyle}>
+        {value.slice(0, 8)}...{value.slice(-6)}
+      </button>
+    </div>
+  );
+}
+
+function shortNum(value) {
+  if (!value) return "-";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return value;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
+  if (n < 0.000001 && n > 0) return n.toExponential(2);
+  return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+}
+
 const pageStyle = {
   minHeight: "100vh",
+  position: "relative",
+  overflow: "hidden",
   background:
-    "radial-gradient(circle at top, #24123a 0%, #0b0b0f 60%)",
+    "radial-gradient(circle at top left, #2b0b4f 0%, #08070d 34%, #030305 100%)",
   color: "white",
-  fontFamily: "Arial",
-  padding: "40px"
+  fontFamily: "Inter, Arial, sans-serif",
+  padding: "28px"
+};
+
+const glowOne = {
+  position: "fixed",
+  width: "520px",
+  height: "520px",
+  top: "-140px",
+  right: "-120px",
+  background: "rgba(168,85,247,0.28)",
+  filter: "blur(120px)",
+  pointerEvents: "none"
+};
+
+const glowTwo = {
+  position: "fixed",
+  width: "440px",
+  height: "440px",
+  bottom: "-150px",
+  left: "-120px",
+  background: "rgba(124,58,237,0.22)",
+  filter: "blur(120px)",
+  pointerEvents: "none"
 };
 
 const containerStyle = {
-  maxWidth: "1200px",
-  margin: "0 auto"
+  maxWidth: "1280px",
+  margin: "0 auto",
+  position: "relative",
+  zIndex: 2
 };
 
-const layoutStyle = {
+const navStyle = {
+  height: "76px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  background: "rgba(10,10,18,0.72)",
+  border: "1px solid rgba(192,132,252,0.18)",
+  borderRadius: "24px",
+  padding: "10px 18px",
+  backdropFilter: "blur(18px)",
+  boxShadow: "0 0 40px rgba(168,85,247,0.12)",
+  marginBottom: "28px"
+};
+
+const brandStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "14px",
+  cursor: "pointer"
+};
+
+const logoStyle = {
+  width: "52px",
+  height: "52px",
+  borderRadius: "16px",
+  objectFit: "cover",
+  boxShadow: "0 0 28px rgba(168,85,247,0.55)"
+};
+
+const brandNameStyle = {
+  fontSize: "24px",
+  fontWeight: "900",
+  letterSpacing: "1px"
+};
+
+const brandSubStyle = {
+  fontSize: "12px",
+  color: "#c4b5fd"
+};
+
+const navWalletStyle = {
+  background: "linear-gradient(135deg, #7c3aed, #c084fc)",
+  border: "none",
+  color: "white",
+  padding: "13px 18px",
+  borderRadius: "14px",
+  cursor: "pointer",
+  fontWeight: "900",
+  boxShadow: "0 0 24px rgba(168,85,247,0.45)"
+};
+
+const backButtonStyle = {
+  marginBottom: "20px",
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  color: "#ddd6fe",
+  padding: "12px 16px",
+  borderRadius: "14px",
+  cursor: "pointer",
+  fontWeight: "800"
+};
+
+const heroGridStyle = {
   display: "grid",
-  gridTemplateColumns: "1.4fr 0.8fr",
-  gap: "24px"
+  gridTemplateColumns: "1fr 420px",
+  gap: "24px",
+  alignItems: "start"
 };
 
 const panelStyle = {
   background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  borderRadius: "24px",
+  border: "1px solid rgba(192,132,252,0.16)",
+  borderRadius: "28px",
   padding: "28px"
 };
 
-const boxStyle = {
-  ...panelStyle
+const leftPanelStyle = {
+  ...panelStyle,
+  minHeight: "620px"
 };
 
-const titleStyle = {
-  fontSize: "48px",
-  marginBottom: "8px"
+const tradePanelStyle = {
+  ...panelStyle,
+  position: "sticky",
+  top: "24px",
+  boxShadow: "0 0 70px rgba(168,85,247,0.13)"
 };
 
-const subtitleStyle = {
-  opacity: 0.7,
-  fontSize: "20px"
+const tokenHeaderStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "22px"
+};
+
+const tokenImageWrapStyle = {
+  width: "116px",
+  height: "116px",
+  borderRadius: "28px",
+  overflow: "hidden",
+  background: "rgba(168,85,247,0.16)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxShadow: "0 0 36px rgba(168,85,247,0.3)"
+};
+
+const tokenImageStyle = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover"
+};
+
+const fallbackStyle = {
+  fontWeight: "950",
+  fontSize: "34px",
+  color: "#e9d5ff"
+};
+
+const statusBadgeStyle = {
+  display: "inline-block",
+  fontSize: "12px",
+  fontWeight: "900",
+  color: "#d8b4fe",
+  border: "1px solid rgba(192,132,252,0.22)",
+  background: "rgba(168,85,247,0.14)",
+  padding: "8px 10px",
+  borderRadius: "999px",
+  marginBottom: "12px"
+};
+
+const tokenTitleStyle = {
+  fontSize: "64px",
+  lineHeight: "0.95",
+  margin: 0,
+  fontWeight: "1000",
+  letterSpacing: "-3px"
+};
+
+const tokenNameStyle = {
+  color: "#c7c2d5",
+  fontSize: "20px",
+  marginTop: "10px"
+};
+
+const descriptionStyle = {
+  marginTop: "28px",
+  maxWidth: "760px",
+  color: "#aaa4bc",
+  fontSize: "18px",
+  lineHeight: "1.55"
+};
+
+const progressBlockStyle = {
+  marginTop: "34px",
+  padding: "22px",
+  borderRadius: "22px",
+  background: "rgba(0,0,0,0.22)",
+  border: "1px solid rgba(255,255,255,0.08)"
+};
+
+const progressTopStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  marginBottom: "12px",
+  color: "#ddd6fe"
 };
 
 const progressOuterStyle = {
-  height: "16px",
-  background: "rgba(255,255,255,0.1)",
+  height: "18px",
+  background: "rgba(255,255,255,0.08)",
   borderRadius: "999px",
-  overflow: "hidden",
-  marginTop: "10px"
+  overflow: "hidden"
 };
 
 const progressInnerStyle = {
   height: "100%",
-  background: "#7c3aed"
+  background: "linear-gradient(90deg, #7c3aed, #a855f7, #c084fc)",
+  boxShadow: "0 0 24px rgba(192,132,252,0.8)"
 };
 
 const statsGridStyle = {
-  marginTop: "32px",
+  marginTop: "22px",
   display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "16px"
+  gridTemplateColumns: "repeat(4, 1fr)",
+  gap: "14px"
 };
 
 const statStyle = {
-  background: "rgba(0,0,0,0.25)",
-  borderRadius: "16px",
-  padding: "18px"
+  background: "rgba(0,0,0,0.24)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "20px",
+  padding: "18px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px"
 };
 
-const buyTitleStyle = {
-  fontSize: "24px",
-  marginBottom: "16px"
+const linksRowStyle = {
+  display: "flex",
+  gap: "12px",
+  marginTop: "24px",
+  flexWrap: "wrap"
+};
+
+const linkButtonStyle = {
+  textDecoration: "none",
+  color: "#ddd6fe",
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(192,132,252,0.18)",
+  padding: "12px 14px",
+  borderRadius: "14px",
+  fontWeight: "800"
+};
+
+const addressPanelStyle = {
+  marginTop: "24px",
+  display: "grid",
+  gap: "10px"
+};
+
+const addressRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "16px",
+  padding: "12px 14px",
+  color: "#9993aa"
+};
+
+const addressButtonStyle = {
+  background: "transparent",
+  border: "none",
+  color: "#c084fc",
+  cursor: "pointer",
+  fontWeight: "900"
+};
+
+const tradeHeaderStyle = {
+  marginBottom: "18px"
+};
+
+const tradeTitleStyle = {
+  fontSize: "30px",
+  margin: 0
+};
+
+const tradeSubStyle = {
+  color: "#9993aa",
+  marginTop: "6px"
+};
+
+const walletButtonStyle = {
+  width: "100%",
+  background: "linear-gradient(135deg, #7c3aed, #c084fc)",
+  border: "none",
+  color: "white",
+  padding: "15px",
+  borderRadius: "16px",
+  cursor: "pointer",
+  fontWeight: "900",
+  boxShadow: "0 0 24px rgba(168,85,247,0.35)"
+};
+
+const balanceBoxStyle = {
+  marginTop: "16px",
+  background: "rgba(0,0,0,0.22)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "18px",
+  padding: "16px",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "10px",
+  color: "#bdb7cd"
+};
+
+const tradeBoxStyle = {
+  marginTop: "18px",
+  paddingTop: "18px",
+  borderTop: "1px solid rgba(255,255,255,0.1)"
+};
+
+const tradeLabelStyle = {
+  fontWeight: "900",
+  marginBottom: "10px",
+  color: "#e9d5ff"
 };
 
 const inputStyle = {
   width: "100%",
-  padding: "14px",
-  marginBottom: "16px",
-  borderRadius: "12px",
-  border: "none",
-  background: "#111118",
-  color: "white"
+  padding: "15px 16px",
+  marginBottom: "12px",
+  borderRadius: "16px",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.055)",
+  color: "white",
+  outline: "none"
 };
 
-const primaryButtonStyle = {
+const buyButtonStyle = {
   width: "100%",
-  background: "#7c3aed",
+  background: "linear-gradient(135deg, #7c3aed, #a855f7)",
   border: "none",
   color: "white",
-  padding: "16px",
-  borderRadius: "12px",
+  padding: "15px",
+  borderRadius: "16px",
   cursor: "pointer",
-  fontWeight: "bold"
+  fontWeight: "900"
 };
 
 const sellButtonStyle = {
   width: "100%",
-  background: "#ef4444",
+  background: "linear-gradient(135deg, #ef4444, #f97316)",
   border: "none",
   color: "white",
-  padding: "16px",
-  borderRadius: "12px",
+  padding: "15px",
+  borderRadius: "16px",
   cursor: "pointer",
-  fontWeight: "bold"
-};
-
-const smallButtonStyle = {
-  width: "100%",
-  background: "#7c3aed",
-  border: "none",
-  color: "white",
-  padding: "12px",
-  borderRadius: "12px",
-  cursor: "pointer",
-  fontWeight: "bold"
-};
-
-const tradeBoxStyle = {
-  marginTop: "24px",
-  paddingTop: "24px",
-  borderTop: "1px solid rgba(255,255,255,0.12)"
-};
-
-const addressBoxStyle = {
-  marginTop: "24px",
-  fontSize: "13px",
-  opacity: 0.65,
-  wordBreak: "break-all"
+  fontWeight: "900"
 };

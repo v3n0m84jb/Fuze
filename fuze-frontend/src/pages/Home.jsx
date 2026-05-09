@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
 
 import Header from "../components/Header";
+import { supabase } from "../lib/supabase";
 
 import {
   FACTORY_ADDRESS,
@@ -28,6 +29,27 @@ export default function Home() {
 
   async function loadTokens() {
     try {
+      const { data, error } = await supabase
+        .from("tokens")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setTokens(
+          data.map((item) => ({
+            token: item.token_address,
+            pool: item.pool_address,
+            creator: item.creator_address,
+            name: item.name,
+            symbol: item.symbol
+          }))
+        );
+
+        return;
+      }
+
       const provider = new ethers.JsonRpcProvider(RPC_URL);
 
       const factory = new ethers.Contract(
@@ -89,7 +111,39 @@ export default function Home() {
         }
       );
 
-      await tx.wait();
+      const receipt = await tx.wait();
+
+      let created = null;
+
+      for (const log of receipt.logs) {
+        try {
+          const parsed = factory.interface.parseLog(log);
+
+          if (parsed && parsed.name === "TokenCreated") {
+            created = {
+              token: parsed.args.token,
+              pool: parsed.args.pool,
+              creator: parsed.args.creator,
+              name: parsed.args.name,
+              symbol: parsed.args.symbol
+            };
+          }
+        } catch {}
+      }
+
+      if (created) {
+        const { error } = await supabase.from("tokens").insert({
+          token_address: created.token,
+          pool_address: created.pool,
+          creator_address: created.creator,
+          name: created.name,
+          symbol: created.symbol
+        });
+
+        if (error) {
+          console.error(error);
+        }
+      }
 
       setTokenName("");
       setTokenSymbol("");

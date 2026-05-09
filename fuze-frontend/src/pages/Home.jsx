@@ -18,8 +18,15 @@ export default function Home() {
   const navigate = useNavigate();
 
   const [showCreate, setShowCreate] = useState(false);
+
   const [tokenName, setTokenName] = useState("");
   const [tokenSymbol, setTokenSymbol] = useState("");
+  const [description, setDescription] = useState("");
+  const [website, setWebsite] = useState("");
+  const [telegram, setTelegram] = useState("");
+  const [twitter, setTwitter] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [tokens, setTokens] = useState([]);
 
@@ -43,7 +50,12 @@ export default function Home() {
             pool: item.pool_address,
             creator: item.creator_address,
             name: item.name,
-            symbol: item.symbol
+            symbol: item.symbol,
+            description: item.description,
+            imageUrl: item.image_url,
+            website: item.website,
+            telegram: item.telegram,
+            twitter: item.twitter
           }))
         );
 
@@ -80,6 +92,27 @@ export default function Home() {
     }
   }
 
+  async function uploadTokenImage() {
+    if (!imageFile) return null;
+
+    const fileExt = imageFile.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}.${fileExt}`;
+
+    const { error } = await supabase.storage
+      .from("token-images")
+      .upload(fileName, imageFile);
+
+    if (error) throw error;
+
+    const { data } = supabase.storage
+      .from("token-images")
+      .getPublicUrl(fileName);
+
+    return data.publicUrl;
+  }
+
   async function createToken() {
     if (!window.ethereum) {
       alert("MetaMask niet gevonden");
@@ -93,6 +126,8 @@ export default function Home() {
 
     try {
       setLoading(true);
+
+      const imageUrl = await uploadTokenImage();
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
@@ -137,16 +172,24 @@ export default function Home() {
           pool_address: created.pool,
           creator_address: created.creator,
           name: created.name,
-          symbol: created.symbol
+          symbol: created.symbol,
+          description: description.trim() || null,
+          image_url: imageUrl,
+          website: website.trim() || null,
+          telegram: telegram.trim() || null,
+          twitter: twitter.trim() || null
         });
 
-        if (error) {
-          console.error(error);
-        }
+        if (error) throw error;
       }
 
       setTokenName("");
       setTokenSymbol("");
+      setDescription("");
+      setWebsite("");
+      setTelegram("");
+      setTwitter("");
+      setImageFile(null);
       setShowCreate(false);
 
       await loadTokens();
@@ -198,6 +241,45 @@ export default function Home() {
               style={inputStyle}
             />
 
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Short description"
+              style={{
+                ...inputStyle,
+                minHeight: "90px",
+                resize: "vertical"
+              }}
+            />
+
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+              style={fileInputStyle}
+            />
+
+            <input
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              placeholder="Website URL"
+              style={inputStyle}
+            />
+
+            <input
+              value={telegram}
+              onChange={(e) => setTelegram(e.target.value)}
+              placeholder="Telegram URL"
+              style={inputStyle}
+            />
+
+            <input
+              value={twitter}
+              onChange={(e) => setTwitter(e.target.value)}
+              placeholder="X / Twitter URL"
+              style={inputStyle}
+            />
+
             <button
               onClick={createToken}
               disabled={loading}
@@ -221,9 +303,27 @@ export default function Home() {
                 onClick={() => navigate(`/token/${token.pool}`)}
                 style={cardStyle}
               >
+                <div style={tokenImageWrapStyle}>
+                  {token.imageUrl ? (
+                    <img
+                      src={token.imageUrl}
+                      alt={token.symbol}
+                      style={tokenImageStyle}
+                    />
+                  ) : (
+                    <span style={tokenImageFallbackStyle}>
+                      {token.symbol?.slice(0, 2)}
+                    </span>
+                  )}
+                </div>
+
                 <h4 style={cardSymbolStyle}>{token.symbol}</h4>
 
                 <p style={cardNameStyle}>{token.name}</p>
+
+                {token.description && (
+                  <p style={descriptionStyle}>{token.description}</p>
+                )}
 
                 <p style={cardAddressStyle}>
                   Pool: {token.pool.slice(0, 6)}...{token.pool.slice(-4)}
@@ -279,7 +379,7 @@ const heroButtonStyle = {
 };
 
 const createBoxStyle = {
-  maxWidth: "460px",
+  maxWidth: "520px",
   margin: "0 auto 60px",
   background: "rgba(255,255,255,0.08)",
   border: "1px solid rgba(255,255,255,0.15)",
@@ -300,6 +400,16 @@ const inputStyle = {
   border: "none",
   background: "#111118",
   color: "white"
+};
+
+const fileInputStyle = {
+  width: "100%",
+  padding: "14px",
+  marginBottom: "16px",
+  borderRadius: "12px",
+  background: "#111118",
+  color: "white",
+  border: "1px solid rgba(255,255,255,0.12)"
 };
 
 const primaryButtonStyle = {
@@ -332,6 +442,29 @@ const cardStyle = {
   cursor: "pointer"
 };
 
+const tokenImageWrapStyle = {
+  width: "64px",
+  height: "64px",
+  borderRadius: "18px",
+  overflow: "hidden",
+  background: "rgba(255,255,255,0.12)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: "18px"
+};
+
+const tokenImageStyle = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover"
+};
+
+const tokenImageFallbackStyle = {
+  fontWeight: "bold",
+  fontSize: "20px"
+};
+
 const cardSymbolStyle = {
   fontSize: "24px",
   marginBottom: "8px"
@@ -339,7 +472,13 @@ const cardSymbolStyle = {
 
 const cardNameStyle = {
   opacity: 0.7,
-  marginBottom: "20px"
+  marginBottom: "12px"
+};
+
+const descriptionStyle = {
+  opacity: 0.55,
+  fontSize: "14px",
+  marginBottom: "18px"
 };
 
 const cardAddressStyle = {

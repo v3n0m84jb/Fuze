@@ -45,8 +45,7 @@ export default function TokenPage() {
       .reverse()
       .filter(
         (trade) =>
-          trade.price_after !== null &&
-          trade.price_after !== undefined
+          trade.price_after !== null && trade.price_after !== undefined
       )
       .map((trade, index) => ({
         trade: index + 1,
@@ -65,10 +64,7 @@ export default function TokenPage() {
   }, [poolAddress]);
 
   async function loadAll() {
-    await Promise.all([
-      loadTokenAndStats(),
-      loadTrades()
-    ]);
+    await Promise.all([loadTokenAndStats(), loadTrades()]);
   }
 
   async function loadTrades() {
@@ -81,7 +77,6 @@ export default function TokenPage() {
         .limit(50);
 
       if (error) throw error;
-
       setTrades(data || []);
     } catch (err) {
       console.error(err);
@@ -127,10 +122,7 @@ export default function TokenPage() {
         for (let i = 0; i < Number(total); i++) {
           const item = await factory.allTokens(i);
 
-          if (
-            item.pool.toLowerCase() ===
-            poolAddress.toLowerCase()
-          ) {
+          if (item.pool.toLowerCase() === poolAddress.toLowerCase()) {
             found = {
               token: item.token,
               pool: item.pool,
@@ -138,7 +130,6 @@ export default function TokenPage() {
               name: item.name,
               symbol: item.symbol
             };
-
             break;
           }
         }
@@ -152,37 +143,23 @@ export default function TokenPage() {
       setToken(found);
 
       const provider = new ethers.JsonRpcProvider(RPC_URL);
-
-      const pool = new ethers.Contract(
-        found.pool,
-        POOL_ABI,
-        provider
-      );
+      const pool = new ethers.Contract(found.pool, POOL_ABI, provider);
 
       const price = await pool.currentPrice();
       const reserve = await pool.reserveMON();
       const sold = await pool.tokensSold();
       const ignited = await pool.ignited();
 
-      const reserveNumber = Number(
-        ethers.formatEther(reserve)
-      );
-
-      const soldNumber = Number(
-        ethers.formatUnits(sold, 18)
-      );
-
-      const priceNumber = Number(
-        ethers.formatUnits(price, 18)
-      );
+      const reserveNumber = Number(ethers.formatEther(reserve));
+      const soldNumber = Number(ethers.formatUnits(sold, 18));
+      const priceNumber = Number(ethers.formatUnits(price, 18));
 
       const progress = Math.min(
         (reserveNumber / IGNITION_TARGET_MON) * 100,
         100
       );
 
-      const marketCap =
-        soldNumber * priceNumber;
+      const marketCap = soldNumber * priceNumber;
 
       setPoolStats({
         price: priceNumber,
@@ -207,14 +184,8 @@ export default function TokenPage() {
       return;
     }
 
-    const provider = new ethers.BrowserProvider(
-      window.ethereum
-    );
-
-    const accounts = await provider.send(
-      "eth_requestAccounts",
-      []
-    );
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const accounts = await provider.send("eth_requestAccounts", []);
 
     setWallet(accounts[0]);
 
@@ -223,14 +194,9 @@ export default function TokenPage() {
     }
   }
 
-  async function loadTokenBalance(
-    tokenItem,
-    walletAddress
-  ) {
+  async function loadTokenBalance(tokenItem, walletAddress) {
     try {
-      const provider = new ethers.JsonRpcProvider(
-        RPC_URL
-      );
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
 
       const tokenContract = new ethers.Contract(
         tokenItem.token,
@@ -238,21 +204,15 @@ export default function TokenPage() {
         provider
       );
 
-      const balance =
-        await tokenContract.balanceOf(walletAddress);
-
-      setTokenBalance(
-        ethers.formatUnits(balance, 18)
-      );
+      const balance = await tokenContract.balanceOf(walletAddress);
+      setTokenBalance(ethers.formatUnits(balance, 18));
     } catch (err) {
       console.error(err);
     }
   }
 
   async function getPoolPriceAfter(poolContract) {
-    const priceAfter =
-      await poolContract.currentPrice();
-
+    const priceAfter = await poolContract.currentPrice();
     return ethers.formatUnits(priceAfter, 18);
   }
 
@@ -272,30 +232,20 @@ export default function TokenPage() {
     try {
       setBuyLoading(true);
 
-      const provider = new ethers.BrowserProvider(
-        window.ethereum
-      );
-
+      const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-
       const address = await signer.getAddress();
 
       setWallet(address);
 
-      const pool = new ethers.Contract(
-        token.pool,
-        POOL_ABI,
-        signer
-      );
+      const pool = new ethers.Contract(token.pool, POOL_ABI, signer);
 
       const tx = await pool.buy(0, {
         value: ethers.parseEther(buyAmount)
       });
 
       const receipt = await tx.wait();
-
-      const priceAfter =
-        await getPoolPriceAfter(pool);
+      const priceAfter = await getPoolPriceAfter(pool);
 
       await supabase.from("trades").insert({
         token_address: token.token,
@@ -313,12 +263,7 @@ export default function TokenPage() {
       alert("Buy complete!");
     } catch (err) {
       console.error(err);
-
-      alert(
-        err?.reason ||
-          err?.message ||
-          "Buy failed"
-      );
+      alert(err?.reason || err?.message || "Buy failed");
     } finally {
       setBuyLoading(false);
     }
@@ -340,50 +285,24 @@ export default function TokenPage() {
     try {
       setSellLoading(true);
 
-      const provider = new ethers.BrowserProvider(
-        window.ethereum
-      );
-
+      const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-
       const address = await signer.getAddress();
 
       setWallet(address);
 
-      const tokenContract = new ethers.Contract(
-        token.token,
-        TOKEN_ABI,
-        signer
-      );
+      const tokenContract = new ethers.Contract(token.token, TOKEN_ABI, signer);
+      const pool = new ethers.Contract(token.pool, POOL_ABI, signer);
 
-      const pool = new ethers.Contract(
-        token.pool,
-        POOL_ABI,
-        signer
-      );
+      const amount = ethers.parseUnits(sellAmount, 18);
 
-      const amount = ethers.parseUnits(
-        sellAmount,
-        18
-      );
-
-      const approveTx =
-        await tokenContract.approve(
-          token.pool,
-          amount
-        );
-
+      const approveTx = await tokenContract.approve(token.pool, amount);
       await approveTx.wait();
 
-      const sellTx = await pool.sell(
-        amount,
-        0
-      );
-
+      const sellTx = await pool.sell(amount, 0);
       const receipt = await sellTx.wait();
 
-      const priceAfter =
-        await getPoolPriceAfter(pool);
+      const priceAfter = await getPoolPriceAfter(pool);
 
       await supabase.from("trades").insert({
         token_address: token.token,
@@ -403,12 +322,7 @@ export default function TokenPage() {
       alert("Sell complete!");
     } catch (err) {
       console.error(err);
-
-      alert(
-        err?.reason ||
-          err?.message ||
-          "Sell failed"
-      );
+      alert(err?.reason || err?.message || "Sell failed");
     } finally {
       setSellLoading(false);
     }
@@ -431,44 +345,21 @@ export default function TokenPage() {
 
       <div style={containerStyle}>
         <nav style={navStyle}>
-          <div
-            onClick={() => navigate("/")}
-            style={brandStyle}
-          >
-            <img
-              src="/logo.jpg"
-              alt="Fuze"
-              style={logoStyle}
-            />
+          <div onClick={() => navigate("/")} style={brandStyle}>
+            <img src="/logo.jpg" alt="Fuze" style={logoStyle} />
 
             <div>
-              <div style={brandNameStyle}>
-                FUZE
-              </div>
-
-              <div style={brandSubStyle}>
-                Monad Launchpad
-              </div>
+              <div style={brandNameStyle}>FUZE</div>
+              <div style={brandSubStyle}>Monad Launchpad</div>
             </div>
           </div>
 
-          <button
-            onClick={connectWallet}
-            style={walletButtonStyle}
-          >
-            {wallet
-              ? `${wallet.slice(
-                  0,
-                  6
-                )}...${wallet.slice(-4)}`
-              : "Connect Wallet"}
+          <button onClick={connectWallet} style={walletButtonStyle}>
+            {wallet ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : "Connect Wallet"}
           </button>
         </nav>
 
-        <button
-          onClick={() => navigate("/")}
-          style={backButtonStyle}
-        >
+        <button onClick={() => navigate("/")} style={backButtonStyle}>
           ← Back
         </button>
 
@@ -478,72 +369,43 @@ export default function TokenPage() {
               <div style={tokenInfoStyle}>
                 <div style={tokenImageWrapStyle}>
                   {token.imageUrl ? (
-                    <img
-                      src={token.imageUrl}
-                      alt={token.symbol}
-                      style={tokenImageStyle}
-                    />
+                    <img src={token.imageUrl} alt={token.symbol} style={tokenImageStyle} />
                   ) : (
-                    <span style={fallbackStyle}>
-                      {token.symbol?.slice(0, 2)}
-                    </span>
+                    <span style={fallbackStyle}>{token.symbol?.slice(0, 2)}</span>
                   )}
                 </div>
 
                 <div>
                   <div style={statusBadgeStyle}>
-                    {poolStats?.ignited
-                      ? "IGNITED 🔥"
-                      : "LIVE ⚡"}
+                    {poolStats?.ignited ? "IGNITED 🔥" : "LIVE ⚡"}
                   </div>
 
-                  <h1 style={tokenTitleStyle}>
-                    {token.symbol}
-                  </h1>
-
-                  <p style={tokenNameStyle}>
-                    {token.name}
-                  </p>
+                  <h1 style={tokenTitleStyle}>{token.symbol}</h1>
+                  <p style={tokenNameStyle}>{token.name}</p>
                 </div>
               </div>
 
               <div style={priceBlockStyle}>
-                <div style={priceLabelStyle}>
-                  PRICE
-                </div>
+                <div style={priceLabelStyle}>PRICE</div>
 
                 <div style={priceValueStyle}>
                   {shortNum(poolStats?.price)} MON
                 </div>
 
                 <div style={mcapStyle}>
-                  MCAP{" "}
-                  {shortNum(
-                    poolStats?.marketCap
-                  )}{" "}
-                  MON
+                  MCAP {shortNum(poolStats?.marketCap)} MON
                 </div>
               </div>
             </div>
 
             {token.description && (
-              <p style={descriptionStyle}>
-                {token.description}
-              </p>
+              <p style={descriptionStyle}>{token.description}</p>
             )}
 
             <div style={progressWrapStyle}>
               <div style={progressTopStyle}>
-                <span>
-                  Bonding Progress
-                </span>
-
-                <strong>
-                  {poolStats?.progress.toFixed(
-                    2
-                  )}
-                  %
-                </strong>
+                <span>Bonding Progress</span>
+                <strong>{poolStats?.progress.toFixed(2)}%</strong>
               </div>
 
               <div style={progressOuterStyle}>
@@ -557,73 +419,35 @@ export default function TokenPage() {
             </div>
 
             <div style={statsGridStyle}>
-              <Stat
-                label="Reserve"
-                value={`${shortNum(
-                  poolStats?.reserve
-                )} MON`}
-              />
+              <Stat label="Reserve" value={`${shortNum(poolStats?.reserve)} MON`} />
+              <Stat label="Tokens Sold" value={shortNum(poolStats?.sold)} />
+              <Stat label="Ignition" value={`${IGNITION_TARGET_MON} MON`} />
+              <Stat label="Trades" value={trades.length} />
+            </div>
 
-              <Stat
-                label="Tokens Sold"
-                value={shortNum(
-                  poolStats?.sold
-                )}
-              />
-
-              <Stat
-                label="Ignition"
-                value={`${IGNITION_TARGET_MON} MON`}
-              />
-
-              <Stat
-                label="Trades"
-                value={trades.length}
-              />
+            <div style={addressPanelStyle}>
+              <Address label="CA" value={token.token} />
+              <Address label="Pool" value={token.pool} />
+              <Address label="Creator" value={token.creator} />
             </div>
 
             <div style={chartPanelStyle}>
               <div style={chartHeaderStyle}>
-                <h2 style={chartTitleStyle}>
-                  Live Price Chart
-                </h2>
-
-                <div style={liveBadgeStyle}>
-                  LIVE
-                </div>
+                <h2 style={chartTitleStyle}>Live Price Chart</h2>
+                <div style={liveBadgeStyle}>LIVE</div>
               </div>
 
-              <div
-                style={{
-                  width: "100%",
-                  height: 360
-                }}
-              >
+              <div style={{ width: "100%", height: 360 }}>
                 <ResponsiveContainer>
                   <AreaChart data={chartData}>
-                    <XAxis
-                      dataKey="trade"
-                      stroke="#8f8a9f"
-                    />
-
-                    <YAxis
-                      stroke="#8f8a9f"
-                      domain={[
-                        "auto",
-                        "auto"
-                      ]}
-                    />
+                    <XAxis dataKey="trade" stroke="#8f8a9f" />
+                    <YAxis stroke="#8f8a9f" domain={["auto", "auto"]} />
 
                     <Tooltip
-                      formatter={(value) => [
-                        `${value} MON`,
-                        "Price"
-                      ]}
+                      formatter={(value) => [`${value} MON`, "Price"]}
                       contentStyle={{
-                        background:
-                          "#111118",
-                        border:
-                          "1px solid rgba(192,132,252,0.25)",
+                        background: "#111118",
+                        border: "1px solid rgba(192,132,252,0.25)",
                         borderRadius: "12px",
                         color: "white"
                       }}
@@ -643,65 +467,41 @@ export default function TokenPage() {
 
             <div style={tradesPanelStyle}>
               <div style={chartHeaderStyle}>
-                <h2 style={chartTitleStyle}>
-                  Recent Trades
-                </h2>
-
-                <div style={liveBadgeStyle}>
-                  {trades.length}
-                </div>
+                <h2 style={chartTitleStyle}>Recent Trades</h2>
+                <div style={liveBadgeStyle}>{trades.length}</div>
               </div>
 
+              {trades.length === 0 && (
+                <p style={{ color: "#8f8a9f" }}>No trades yet.</p>
+              )}
+
               {trades.map((trade) => (
-                <div
-                  key={trade.id}
-                  style={tradeRowStyle}
-                >
+                <div key={trade.id} style={tradeRowStyle}>
                   <div>
                     <div
                       style={{
                         ...tradeTypeStyle,
-                        color:
-                          trade.trade_type ===
-                          "buy"
-                            ? "#86efac"
-                            : "#fca5a5"
+                        color: trade.trade_type === "buy" ? "#86efac" : "#fca5a5"
                       }}
                     >
                       {trade.trade_type.toUpperCase()}
                     </div>
 
                     <div style={walletTextStyle}>
-                      {trade.wallet_address.slice(
-                        0,
-                        6
-                      )}
-                      ...
-                      {trade.wallet_address.slice(
-                        -4
-                      )}
+                      {trade.wallet_address.slice(0, 6)}...
+                      {trade.wallet_address.slice(-4)}
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      textAlign: "right"
-                    }}
-                  >
-                    <div
-                      style={tradeAmountStyle}
-                    >
-                      {trade.trade_type ===
-                      "buy"
+                  <div style={{ textAlign: "right" }}>
+                    <div style={tradeAmountStyle}>
+                      {trade.trade_type === "buy"
                         ? `${trade.mon_amount} MON`
                         : `${trade.token_amount} ${token.symbol}`}
                     </div>
 
                     <div style={walletTextStyle}>
-                      {shortNum(
-                        trade.price_after
-                      )}{" "}
-                      MON
+                      {shortNum(trade.price_after)} MON
                     </div>
                   </div>
                 </div>
@@ -711,43 +511,25 @@ export default function TokenPage() {
 
           <aside style={tradePanelStyle}>
             <div style={tradeTitleWrapStyle}>
-              <h2 style={tradeTitleStyle}>
-                Trade {token.symbol}
-              </h2>
-
-              <p style={tradeSubStyle}>
-                Buy and sell instantly.
-              </p>
+              <h2 style={tradeTitleStyle}>Trade {token.symbol}</h2>
+              <p style={tradeSubStyle}>Buy and sell instantly.</p>
             </div>
 
             <div style={balanceBoxStyle}>
               <span>Your Balance</span>
-
               <strong>
-                {Number(
-                  tokenBalance
-                ).toLocaleString()}{" "}
-                {token.symbol}
+                {Number(tokenBalance).toLocaleString()} {token.symbol}
               </strong>
             </div>
 
             <div style={tradeBoxStyle}>
-              <div style={tradeLabelStyle}>
-                Buy with MON
-              </div>
+              <div style={tradeLabelStyle}>Buy with MON</div>
 
               <div style={presetWrapStyle}>
-                {[
-                  "0.1",
-                  "0.5",
-                  "1",
-                  "2"
-                ].map((amount) => (
+                {["0.1", "0.5", "1", "2"].map((amount) => (
                   <button
                     key={amount}
-                    onClick={() =>
-                      setBuyAmount(amount)
-                    }
+                    onClick={() => setBuyAmount(amount)}
                     style={presetButtonStyle}
                   >
                     {amount} MON
@@ -757,103 +539,60 @@ export default function TokenPage() {
 
               <input
                 value={buyAmount}
-                onChange={(e) =>
-                  setBuyAmount(
-                    e.target.value
-                  )
-                }
+                onChange={(e) => setBuyAmount(e.target.value)}
                 placeholder="0.1"
                 style={inputStyle}
               />
 
               <button
                 onClick={buyToken}
-                disabled={
-                  buyLoading ||
-                  poolStats?.ignited
-                }
+                disabled={buyLoading || poolStats?.ignited}
                 style={{
                   ...buyButtonStyle,
-                  opacity:
-                    buyLoading ||
-                    poolStats?.ignited
-                      ? 0.5
-                      : 1
+                  opacity: buyLoading || poolStats?.ignited ? 0.5 : 1
                 }}
               >
-                {buyLoading
-                  ? "Buying..."
-                  : "Buy"}
+                {buyLoading ? "Buying..." : "Buy"}
               </button>
             </div>
 
             <div style={tradeBoxStyle}>
-              <div style={tradeLabelStyle}>
-                Sell Tokens
-              </div>
+              <div style={tradeLabelStyle}>Sell Tokens</div>
 
               <input
                 value={sellAmount}
-                onChange={(e) =>
-                  setSellAmount(
-                    e.target.value
-                  )
-                }
+                onChange={(e) => setSellAmount(e.target.value)}
                 placeholder={`Amount ${token.symbol}`}
                 style={inputStyle}
               />
 
               <button
                 onClick={sellToken}
-                disabled={
-                  sellLoading ||
-                  poolStats?.ignited
-                }
+                disabled={sellLoading || poolStats?.ignited}
                 style={{
                   ...sellButtonStyle,
-                  opacity:
-                    sellLoading ||
-                    poolStats?.ignited
-                      ? 0.5
-                      : 1
+                  opacity: sellLoading || poolStats?.ignited ? 0.5 : 1
                 }}
               >
-                {sellLoading
-                  ? "Selling..."
-                  : "Sell"}
+                {sellLoading ? "Selling..." : "Sell"}
               </button>
             </div>
 
             <div style={linksWrapStyle}>
               {token.website && (
-                <a
-                  href={token.website}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={linkButtonStyle}
-                >
+                <a href={token.website} target="_blank" rel="noreferrer" style={linkButtonStyle}>
                   Website
                 </a>
               )}
 
               {token.telegram && (
-                <a
-                  href={token.telegram}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={linkButtonStyle}
-                >
+                <a href={token.telegram} target="_blank" rel="noreferrer" style={linkButtonStyle}>
                   Telegram
                 </a>
               )}
 
               {token.twitter && (
-                <a
-                  href={token.twitter}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={linkButtonStyle}
-                >
+                <a href={token.twitter} target="_blank" rel="noreferrer" style={linkButtonStyle}>
                   Twitter
                 </a>
               )}
@@ -874,6 +613,32 @@ function Stat({ label, value }) {
   );
 }
 
+function Address({ label, value }) {
+  async function copyAddress() {
+    try {
+      await navigator.clipboard.writeText(value);
+      alert(`${label} copied`);
+    } catch {
+      alert("Copy failed");
+    }
+  }
+
+  if (!value) return null;
+
+  return (
+    <div style={addressRowStyle}>
+      <div>
+        <span style={addressLabelStyle}>{label}</span>
+        <div style={addressFullStyle}>{value}</div>
+      </div>
+
+      <button onClick={copyAddress} style={addressButtonStyle}>
+        Copy
+      </button>
+    </div>
+  );
+}
+
 function shortNum(value) {
   if (!value) return "0";
 
@@ -881,16 +646,9 @@ function shortNum(value) {
 
   if (!Number.isFinite(n)) return value;
 
-  if (n >= 1_000_000)
-    return `${(n / 1_000_000).toFixed(
-      2
-    )}M`;
-
-  if (n >= 1_000)
-    return `${(n / 1_000).toFixed(2)}K`;
-
-  if (n < 0.000001 && n > 0)
-    return n.toExponential(2);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
+  if (n < 0.000001 && n > 0) return n.toExponential(2);
 
   return n.toLocaleString(undefined, {
     maximumFractionDigits: 8
@@ -942,8 +700,7 @@ const navStyle = {
   padding: "10px 18px",
   borderRadius: "24px",
   background: "rgba(10,10,18,0.72)",
-  border:
-    "1px solid rgba(192,132,252,0.18)",
+  border: "1px solid rgba(192,132,252,0.18)",
   backdropFilter: "blur(18px)"
 };
 
@@ -972,8 +729,7 @@ const brandSubStyle = {
 };
 
 const walletButtonStyle = {
-  background:
-    "linear-gradient(135deg, #7c3aed, #c084fc)",
+  background: "linear-gradient(135deg, #7c3aed, #c084fc)",
   border: "none",
   color: "white",
   padding: "13px 18px",
@@ -986,8 +742,7 @@ const backButtonStyle = {
   marginTop: "22px",
   marginBottom: "20px",
   background: "rgba(255,255,255,0.05)",
-  border:
-    "1px solid rgba(255,255,255,0.12)",
+  border: "1px solid rgba(255,255,255,0.12)",
   color: "#ddd6fe",
   padding: "12px 16px",
   borderRadius: "14px",
@@ -1009,8 +764,7 @@ const leftStyle = {
 const topHeaderStyle = {
   background:
     "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))",
-  border:
-    "1px solid rgba(192,132,252,0.18)",
+  border: "1px solid rgba(192,132,252,0.18)",
   borderRadius: "30px",
   padding: "28px",
   display: "flex",
@@ -1030,8 +784,7 @@ const tokenImageWrapStyle = {
   height: "120px",
   borderRadius: "28px",
   overflow: "hidden",
-  background:
-    "rgba(168,85,247,0.16)"
+  background: "rgba(168,85,247,0.16)"
 };
 
 const tokenImageStyle = {
@@ -1055,8 +808,7 @@ const statusBadgeStyle = {
   marginBottom: "12px",
   padding: "8px 12px",
   borderRadius: "999px",
-  background:
-    "rgba(168,85,247,0.16)",
+  background: "rgba(168,85,247,0.16)",
   color: "#d8b4fe",
   fontWeight: "900",
   fontSize: "12px"
@@ -1103,10 +855,8 @@ const descriptionStyle = {
 };
 
 const progressWrapStyle = {
-  background:
-    "rgba(255,255,255,0.04)",
-  border:
-    "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: "24px",
   padding: "22px"
 };
@@ -1120,31 +870,25 @@ const progressTopStyle = {
 const progressOuterStyle = {
   height: "16px",
   borderRadius: "999px",
-  background:
-    "rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.08)",
   overflow: "hidden"
 };
 
 const progressInnerStyle = {
   height: "100%",
-  background:
-    "linear-gradient(90deg,#7c3aed,#c084fc)",
-  boxShadow:
-    "0 0 24px rgba(192,132,252,0.8)"
+  background: "linear-gradient(90deg,#7c3aed,#c084fc)",
+  boxShadow: "0 0 24px rgba(192,132,252,0.8)"
 };
 
 const statsGridStyle = {
   display: "grid",
-  gridTemplateColumns:
-    "repeat(4, 1fr)",
+  gridTemplateColumns: "repeat(4, 1fr)",
   gap: "16px"
 };
 
 const statStyle = {
-  background:
-    "rgba(255,255,255,0.04)",
-  border:
-    "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: "22px",
   padding: "20px",
   display: "flex",
@@ -1152,11 +896,54 @@ const statStyle = {
   gap: "10px"
 };
 
+const addressPanelStyle = {
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "24px",
+  padding: "18px",
+  display: "grid",
+  gap: "12px"
+};
+
+const addressRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "14px",
+  background: "rgba(0,0,0,0.18)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  borderRadius: "16px",
+  padding: "12px 14px"
+};
+
+const addressLabelStyle = {
+  display: "block",
+  color: "#c084fc",
+  fontSize: "12px",
+  fontWeight: "900",
+  marginBottom: "5px"
+};
+
+const addressFullStyle = {
+  color: "#d6d3e4",
+  fontSize: "13px",
+  wordBreak: "break-all"
+};
+
+const addressButtonStyle = {
+  background: "rgba(168,85,247,0.14)",
+  border: "1px solid rgba(192,132,252,0.22)",
+  color: "#e9d5ff",
+  padding: "9px 13px",
+  borderRadius: "12px",
+  cursor: "pointer",
+  fontWeight: "900",
+  flexShrink: 0
+};
+
 const chartPanelStyle = {
-  background:
-    "rgba(255,255,255,0.04)",
-  border:
-    "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: "28px",
   padding: "24px"
 };
@@ -1176,18 +963,15 @@ const chartTitleStyle = {
 const liveBadgeStyle = {
   padding: "8px 12px",
   borderRadius: "999px",
-  background:
-    "rgba(168,85,247,0.16)",
+  background: "rgba(168,85,247,0.16)",
   color: "#d8b4fe",
   fontWeight: "900",
   fontSize: "12px"
 };
 
 const tradesPanelStyle = {
-  background:
-    "rgba(255,255,255,0.04)",
-  border:
-    "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: "28px",
   padding: "24px"
 };
@@ -1197,8 +981,7 @@ const tradeRowStyle = {
   justifyContent: "space-between",
   alignItems: "center",
   padding: "14px 0",
-  borderTop:
-    "1px solid rgba(255,255,255,0.08)"
+  borderTop: "1px solid rgba(255,255,255,0.08)"
 };
 
 const tradeTypeStyle = {
@@ -1221,12 +1004,10 @@ const tradePanelStyle = {
   alignSelf: "start",
   background:
     "linear-gradient(180deg, rgba(168,85,247,0.12), rgba(255,255,255,0.04))",
-  border:
-    "1px solid rgba(192,132,252,0.18)",
+  border: "1px solid rgba(192,132,252,0.18)",
   borderRadius: "28px",
   padding: "24px",
-  boxShadow:
-    "0 0 60px rgba(168,85,247,0.16)"
+  boxShadow: "0 0 60px rgba(168,85,247,0.16)"
 };
 
 const tradeTitleWrapStyle = {
@@ -1244,10 +1025,8 @@ const tradeSubStyle = {
 };
 
 const balanceBoxStyle = {
-  background:
-    "rgba(255,255,255,0.04)",
-  border:
-    "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: "18px",
   padding: "18px",
   display: "flex",
@@ -1265,17 +1044,14 @@ const tradeLabelStyle = {
 
 const presetWrapStyle = {
   display: "grid",
-  gridTemplateColumns:
-    "repeat(4,1fr)",
+  gridTemplateColumns: "repeat(4,1fr)",
   gap: "10px",
   marginBottom: "12px"
 };
 
 const presetButtonStyle = {
-  background:
-    "rgba(255,255,255,0.06)",
-  border:
-    "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.08)",
   color: "white",
   padding: "10px",
   borderRadius: "12px",
@@ -1287,10 +1063,8 @@ const inputStyle = {
   width: "100%",
   padding: "15px 16px",
   borderRadius: "16px",
-  border:
-    "1px solid rgba(255,255,255,0.1)",
-  background:
-    "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.055)",
   color: "white",
   marginBottom: "12px",
   outline: "none"
@@ -1298,8 +1072,7 @@ const inputStyle = {
 
 const buyButtonStyle = {
   width: "100%",
-  background:
-    "linear-gradient(135deg,#7c3aed,#c084fc)",
+  background: "linear-gradient(135deg,#7c3aed,#c084fc)",
   border: "none",
   color: "white",
   padding: "16px",
@@ -1310,8 +1083,7 @@ const buyButtonStyle = {
 
 const sellButtonStyle = {
   width: "100%",
-  background:
-    "linear-gradient(135deg,#ef4444,#f97316)",
+  background: "linear-gradient(135deg,#ef4444,#f97316)",
   border: "none",
   color: "white",
   padding: "16px",
@@ -1330,10 +1102,8 @@ const linksWrapStyle = {
 const linkButtonStyle = {
   textDecoration: "none",
   color: "#ddd6fe",
-  background:
-    "rgba(255,255,255,0.05)",
-  border:
-    "1px solid rgba(192,132,252,0.18)",
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(192,132,252,0.18)",
   padding: "12px 14px",
   borderRadius: "14px",
   fontWeight: "800"

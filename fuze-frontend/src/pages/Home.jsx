@@ -563,8 +563,15 @@ export default function Home() {
 
                   <div>
                     <span>ATH</span>
-                    <strong>{shortNum(Math.max(token.marketCap, token.marketCap * 1.22))} MON</strong>
+                    <strong>
+                      {shortNum(Math.max(token.marketCap, token.marketCap * 1.22))} MON
+                    </strong>
                   </div>
+                </div>
+
+                <div style={bondingRowStyle}>
+                  <span>Bonding</span>
+                  <strong>{token.progress.toFixed(1)}%</strong>
                 </div>
 
                 <div style={progressOuterStyle}>
@@ -915,18 +922,27 @@ const walletDotStyle = {
 const bottomStatsStyle = {
   marginTop: "12px",
   background: "#262626",
-  borderRadius: "0 0 10px 10px",
+  borderRadius: "10px",
   padding: "10px 8px",
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
   gap: "8px"
 };
 
+const bondingRowStyle = {
+  marginTop: "12px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  color: "#bdbdbd",
+  fontSize: "13px",
+  fontWeight: "700"
+};
+
 const progressOuterStyle = {
-  gridColumn: "1 / -1",
   height: "10px",
   borderRadius: "999px",
-  background: "#000",
+  background: "rgba(255,255,255,0.08)",
   overflow: "hidden",
   marginTop: "8px"
 };

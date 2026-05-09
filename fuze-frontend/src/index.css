@@ -38,3 +38,78 @@ input::placeholder,
 textarea::placeholder {
   color: rgba(255, 255, 255, 0.45);
 }
+@media (max-width: 768px) {
+  main {
+    padding: 16px !important;
+  }
+
+  nav {
+    height: auto !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+  }
+
+  nav > div {
+    justify-content: center !important;
+  }
+
+  nav button {
+    width: 100% !important;
+  }
+
+  section {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  h1 {
+    font-size: 42px !important;
+    letter-spacing: -1.5px !important;
+  }
+
+  h2 {
+    font-size: 34px !important;
+  }
+
+  input,
+  textarea,
+  button {
+    font-size: 16px !important;
+  }
+
+  img {
+    max-width: 100%;
+  }
+
+  article {
+    width: 100% !important;
+  }
+
+  aside {
+    position: relative !important;
+    top: auto !important;
+  }
+}
+
+@media (max-width: 480px) {
+  main {
+    padding: 12px !important;
+  }
+
+  h1 {
+    font-size: 36px !important;
+  }
+
+  h2 {
+    font-size: 28px !important;
+  }
+
+  button {
+    padding: 14px !important;
+  }
+}

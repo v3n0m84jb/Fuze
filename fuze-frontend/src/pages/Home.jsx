@@ -111,24 +111,17 @@ export default function Home() {
           .map((trade) => trade.wallet_address.toLowerCase())
       );
 
-      const buys = rows.filter((trade) => trade.trade_type === "buy").length;
-      const sells = rows.filter((trade) => trade.trade_type === "sell").length;
-
       return {
         trades: rows.length,
         volume,
-        holders: buyers.size,
-        buys,
-        sells
+        holders: buyers.size
       };
     } catch (err) {
       console.error(err);
       return {
         trades: 0,
         volume: 0,
-        holders: 0,
-        buys: 0,
-        sells: 0
+        holders: 0
       };
     }
   }
@@ -160,9 +153,7 @@ export default function Home() {
       ignited: stats.ignited,
       trades: tradeStats.trades,
       volume: tradeStats.volume,
-      holders: tradeStats.holders,
-      buys: tradeStats.buys,
-      sells: tradeStats.sells
+      holders: tradeStats.holders
     };
   }
 
@@ -528,7 +519,7 @@ export default function Home() {
               <div style={sectionEyebrowStyle}>LIVE MARKET</div>
               <h2 style={sectionTitleStyle}>Trending Launches</h2>
               <p style={sectionSubStyle}>
-                Fresh FUZE launches ranked by activity, volume and bonding progress.
+                Clean launch overview with the most important market data.
               </p>
             </div>
 
@@ -541,129 +532,82 @@ export default function Home() {
           </div>
 
           <div style={gridStyle}>
-            {filteredTokens.map((token, index) => {
-              const isHovered = hoveredCard === token.pool;
-              const activity = Number(token.buys || 0) + Number(token.sells || 0);
-              const buyPercent =
-                activity > 0 ? Math.round((Number(token.buys || 0) / activity) * 100) : 0;
-
-              return (
-                <article
-                  key={token.pool || index}
-                  onClick={() => navigate(`/token/${token.pool}`)}
-                  onMouseEnter={() => setHoveredCard(token.pool)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                  style={{
-                    ...cardStyle,
-                    ...(isHovered ? cardHoverStyle : {})
-                  }}
-                >
-                  <div style={cardGlowStyle} />
-
-                  <div style={cardHeaderStyle}>
-                    <div style={rankWrapStyle}>
-                      <span style={rankBadgeStyle}>#{index + 1}</span>
-                      {index < 3 && <span style={hotBadgeStyle}>🔥 HOT</span>}
-                    </div>
-
-                    <span
-                      style={{
-                        ...statusPillStyle,
-                        ...(token.ignited ? ignitedPillStyle : bondingPillStyle)
-                      }}
-                    >
-                      {token.ignited ? "IGNITED" : "BONDING"}
-                    </span>
-                  </div>
-
-                  <div style={cardMainStyle}>
+            {filteredTokens.map((token, index) => (
+              <article
+                key={token.pool || index}
+                onClick={() => navigate(`/token/${token.pool}`)}
+                onMouseEnter={() => setHoveredCard(token.pool)}
+                onMouseLeave={() => setHoveredCard(null)}
+                style={{
+                  ...cardStyle,
+                  ...(hoveredCard === token.pool ? cardHoverStyle : {})
+                }}
+              >
+                <div style={cardTopStyle}>
+                  <div style={cardIdentityStyle}>
                     <div style={imageWrapStyle}>
                       {token.imageUrl ? (
-                        <img src={token.imageUrl} alt={token.symbol} style={imageStyle} />
+                        <img
+                          src={token.imageUrl}
+                          alt={token.symbol}
+                          style={imageStyle}
+                        />
                       ) : (
-                        <span style={fallbackStyle}>{token.symbol?.slice(0, 2)}</span>
+                        <span style={fallbackStyle}>
+                          {token.symbol?.slice(0, 2)}
+                        </span>
                       )}
                     </div>
 
-                    <div style={tokenMetaStyle}>
+                    <div style={cardTextStyle}>
+                      <div style={rankStyle}>#{index + 1}</div>
                       <h3 style={cardSymbolStyle}>{token.symbol}</h3>
                       <p style={cardNameStyle}>{token.name}</p>
                     </div>
                   </div>
 
-                  <div style={marketFocusStyle}>
-                    <div>
-                      <span style={marketLabelStyle}>MARKET CAP</span>
-                      <strong style={marketValueStyle}>
-                        {shortNum(token.marketCap)} MON
-                      </strong>
-                    </div>
+                  <span
+                    style={{
+                      ...statusBadgeStyle,
+                      ...(token.ignited ? ignitedBadgeStyle : {})
+                    }}
+                  >
+                    {token.ignited ? "IGNITED" : `${token.progress.toFixed(1)}%`}
+                  </span>
+                </div>
 
-                    <div style={priceBoxStyle}>
-                      <span>PRICE</span>
-                      <strong>{shortNum(token.price)}</strong>
-                    </div>
-                  </div>
+                {token.description && (
+                  <p style={descriptionStyle}>{token.description}</p>
+                )}
 
-                  {token.description && (
-                    <p style={descriptionStyle}>{token.description}</p>
-                  )}
+                <div style={simpleStatsStyle}>
+                  <MiniStat label="MCAP" value={`${shortNum(token.marketCap)} MON`} />
+                  <MiniStat label="VOL" value={`${shortNum(token.volume)} MON`} />
+                  <MiniStat label="TRADES" value={shortNum(token.trades)} />
+                </div>
 
-                  <div style={activityStripStyle}>
-                    <div style={activityTopStyle}>
-                      <span>Buy pressure</span>
-                      <strong>{buyPercent}%</strong>
-                    </div>
+                <div style={miniProgressInfoStyle}>
+                  <span>Bonding</span>
+                  <strong>{token.progress.toFixed(2)}%</strong>
+                </div>
 
-                    <div style={activityBarOuterStyle}>
-                      <div
-                        style={{
-                          ...activityBarInnerStyle,
-                          width: `${buyPercent}%`
-                        }}
-                      />
-                    </div>
+                <div style={miniProgressOuterStyle}>
+                  <div
+                    style={{
+                      ...miniProgressInnerStyle,
+                      width: `${token.progress || 0}%`
+                    }}
+                  />
+                </div>
 
-                    <div style={activityBottomStyle}>
-                      <span>Buys {token.buys || 0}</span>
-                      <span>Sells {token.sells || 0}</span>
-                    </div>
-                  </div>
-
-                  <div style={cardStatsGridStyle}>
-                    <MiniStat label="VOL" value={`${shortNum(token.volume)} MON`} />
-                    <MiniStat label="TRADES" value={shortNum(token.trades)} />
-                    <MiniStat label="HOLDERS" value={shortNum(token.holders)} />
-                    <MiniStat label="SOLD" value={shortNum(token.sold)} />
-                  </div>
-
-                  <div style={miniProgressInfoStyle}>
-                    <span>Bonding Progress</span>
-                    <strong>{token.progress.toFixed(2)}%</strong>
-                  </div>
-
-                  <div style={miniProgressOuterStyle}>
-                    <div
-                      style={{
-                        ...miniProgressInnerStyle,
-                        width: `${token.progress || 0}%`
-                      }}
-                    />
-                  </div>
-
-                  <div style={cardFooterStyle}>
-                    <div>
-                      <span style={poolLabelStyle}>POOL</span>
-                      <strong>
-                        {token.pool.slice(0, 6)}...{token.pool.slice(-4)}
-                      </strong>
-                    </div>
-
-                    <button style={openButtonStyle}>Open →</button>
-                  </div>
-                </article>
-              );
-            })}
+                <div style={cardFooterStyle}>
+                  <span>
+                    {token.pool.slice(0, 6)}...{token.pool.slice(-4)}
+                  </span>
+                  <strong>Open →</strong>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
       </div>
@@ -1048,114 +992,52 @@ const searchStyle = {
 
 const gridStyle = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))",
-  gap: "22px"
+  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+  gap: "18px"
 };
 
 const cardStyle = {
-  position: "relative",
-  overflow: "hidden",
   background:
-    "linear-gradient(180deg, rgba(255,255,255,0.082), rgba(255,255,255,0.034))",
-  border: "1px solid rgba(192,132,252,0.16)",
-  borderRadius: "30px",
-  padding: "22px",
+    "linear-gradient(180deg, rgba(255,255,255,0.072), rgba(255,255,255,0.032))",
+  border: "1px solid rgba(192,132,252,0.14)",
+  borderRadius: "26px",
+  padding: "20px",
   cursor: "pointer",
   transition: "0.22s ease",
-  boxShadow: "0 0 42px rgba(168,85,247,0.08)",
+  boxShadow: "0 0 34px rgba(168,85,247,0.07)",
   transform: "translateY(0)"
 };
 
 const cardHoverStyle = {
-  transform: "translateY(-6px)",
-  border: "1px solid rgba(216,180,254,0.35)",
-  boxShadow:
-    "0 24px 80px rgba(168,85,247,0.22), inset 0 0 0 1px rgba(255,255,255,0.04)"
+  transform: "translateY(-4px)",
+  border: "1px solid rgba(216,180,254,0.32)",
+  boxShadow: "0 20px 60px rgba(168,85,247,0.18)"
 };
 
-const cardGlowStyle = {
-  position: "absolute",
-  width: "180px",
-  height: "180px",
-  top: "-70px",
-  right: "-70px",
-  background: "rgba(168,85,247,0.18)",
-  filter: "blur(42px)",
-  pointerEvents: "none"
-};
-
-const cardHeaderStyle = {
-  position: "relative",
-  zIndex: 2,
+const cardTopStyle = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: "18px"
+  alignItems: "flex-start",
+  gap: "14px"
 };
 
-const rankWrapStyle = {
+const cardIdentityStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "8px"
-};
-
-const rankBadgeStyle = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  color: "#e9d5ff",
-  padding: "7px 10px",
-  borderRadius: "999px",
-  fontSize: "12px",
-  fontWeight: "1000"
-};
-
-const hotBadgeStyle = {
-  background: "rgba(251,146,60,0.12)",
-  border: "1px solid rgba(251,146,60,0.24)",
-  color: "#fed7aa",
-  padding: "7px 10px",
-  borderRadius: "999px",
-  fontSize: "11px",
-  fontWeight: "1000"
-};
-
-const statusPillStyle = {
-  padding: "8px 11px",
-  borderRadius: "999px",
-  fontSize: "11px",
-  fontWeight: "1000"
-};
-
-const bondingPillStyle = {
-  color: "#d8b4fe",
-  border: "1px solid rgba(192,132,252,0.22)",
-  background: "rgba(168,85,247,0.13)"
-};
-
-const ignitedPillStyle = {
-  color: "#86efac",
-  border: "1px solid rgba(134,239,172,0.22)",
-  background: "rgba(34,197,94,0.12)"
-};
-
-const cardMainStyle = {
-  position: "relative",
-  zIndex: 2,
-  display: "flex",
-  alignItems: "center",
-  gap: "16px"
+  gap: "14px",
+  minWidth: 0
 };
 
 const imageWrapStyle = {
-  width: "82px",
-  height: "82px",
-  borderRadius: "24px",
+  width: "66px",
+  height: "66px",
+  borderRadius: "20px",
   overflow: "hidden",
   background: "rgba(168,85,247,0.16)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  boxShadow: "0 0 28px rgba(168,85,247,0.28)",
+  boxShadow: "0 0 22px rgba(168,85,247,0.22)",
   flexShrink: 0
 };
 
@@ -1166,140 +1048,85 @@ const imageStyle = {
 };
 
 const fallbackStyle = {
-  fontWeight: "1000",
-  fontSize: "24px",
+  fontWeight: "900",
+  fontSize: "22px",
   color: "#e9d5ff"
 };
 
-const tokenMetaStyle = {
+const cardTextStyle = {
   minWidth: 0
 };
 
+const rankStyle = {
+  color: "#c084fc",
+  fontSize: "11px",
+  fontWeight: "900",
+  marginBottom: "4px"
+};
+
 const cardSymbolStyle = {
-  fontSize: "36px",
-  lineHeight: 1,
-  margin: "0 0 8px",
-  fontWeight: "1000",
-  letterSpacing: "-1px"
+  fontSize: "28px",
+  margin: "0 0 5px",
+  fontWeight: "950",
+  letterSpacing: "-0.8px"
 };
 
 const cardNameStyle = {
-  color: "#d6d3e4",
+  color: "#cfc9de",
   margin: 0,
-  fontSize: "15px",
+  fontSize: "14px",
   whiteSpace: "nowrap",
   overflow: "hidden",
-  textOverflow: "ellipsis"
+  textOverflow: "ellipsis",
+  maxWidth: "160px"
 };
 
-const marketFocusStyle = {
-  position: "relative",
-  zIndex: 2,
-  marginTop: "20px",
-  padding: "16px",
-  borderRadius: "20px",
-  background:
-    "linear-gradient(135deg, rgba(168,85,247,0.13), rgba(255,255,255,0.04))",
-  border: "1px solid rgba(192,132,252,0.16)",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px"
-};
-
-const marketLabelStyle = {
-  display: "block",
-  color: "#a5a0b8",
+const statusBadgeStyle = {
   fontSize: "11px",
   fontWeight: "900",
-  marginBottom: "6px"
+  color: "#d8b4fe",
+  border: "1px solid rgba(192,132,252,0.2)",
+  background: "rgba(168,85,247,0.12)",
+  padding: "8px 10px",
+  borderRadius: "999px",
+  flexShrink: 0
 };
 
-const marketValueStyle = {
-  fontSize: "24px",
-  fontWeight: "1000",
-  color: "white"
-};
-
-const priceBoxStyle = {
-  textAlign: "right",
-  color: "#a5a0b8",
-  fontSize: "11px",
-  fontWeight: "900"
+const ignitedBadgeStyle = {
+  color: "#86efac",
+  border: "1px solid rgba(134,239,172,0.24)",
+  background: "rgba(34,197,94,0.12)"
 };
 
 const descriptionStyle = {
-  position: "relative",
-  zIndex: 2,
   color: "#918ba3",
   fontSize: "14px",
   lineHeight: "1.45",
-  minHeight: "40px",
-  marginTop: "14px"
-};
-
-const activityStripStyle = {
-  position: "relative",
-  zIndex: 2,
+  minHeight: "38px",
   marginTop: "16px",
-  background: "rgba(0,0,0,0.2)",
-  border: "1px solid rgba(255,255,255,0.07)",
-  borderRadius: "18px",
-  padding: "12px"
+  marginBottom: 0
 };
 
-const activityTopStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  color: "#bdb7cd",
-  fontSize: "12px",
-  marginBottom: "8px"
-};
-
-const activityBarOuterStyle = {
-  height: "8px",
-  background: "rgba(239,68,68,0.22)",
-  borderRadius: "999px",
-  overflow: "hidden"
-};
-
-const activityBarInnerStyle = {
-  height: "100%",
-  background: "linear-gradient(90deg, #22c55e, #86efac)",
-  boxShadow: "0 0 18px rgba(134,239,172,0.55)"
-};
-
-const activityBottomStyle = {
-  marginTop: "8px",
-  display: "flex",
-  justifyContent: "space-between",
-  color: "#8f8a9f",
-  fontSize: "12px"
-};
-
-const cardStatsGridStyle = {
-  position: "relative",
-  zIndex: 2,
+const simpleStatsStyle = {
   display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)",
-  gap: "10px",
+  gridTemplateColumns: "repeat(3, 1fr)",
+  gap: "8px",
   marginTop: "16px"
 };
 
 const miniStatStyle = {
-  background: "rgba(0,0,0,0.22)",
-  border: "1px solid rgba(255,255,255,0.07)",
-  borderRadius: "16px",
-  padding: "12px",
+  background: "rgba(0,0,0,0.2)",
+  border: "1px solid rgba(255,255,255,0.065)",
+  borderRadius: "14px",
+  padding: "10px",
   display: "flex",
   flexDirection: "column",
-  gap: "5px"
+  gap: "5px",
+  minWidth: 0
 };
 
 const miniProgressInfoStyle = {
-  position: "relative",
-  zIndex: 2,
-  marginTop: "18px",
+  marginTop: "16px",
   marginBottom: "8px",
   display: "flex",
   justifyContent: "space-between",
@@ -1308,9 +1135,7 @@ const miniProgressInfoStyle = {
 };
 
 const miniProgressOuterStyle = {
-  position: "relative",
-  zIndex: 2,
-  height: "10px",
+  height: "8px",
   background: "rgba(255,255,255,0.08)",
   borderRadius: "999px",
   overflow: "hidden"
@@ -1318,35 +1143,15 @@ const miniProgressOuterStyle = {
 
 const miniProgressInnerStyle = {
   height: "100%",
-  background: "linear-gradient(90deg, #7c3aed, #a855f7, #c084fc)",
-  boxShadow: "0 0 22px rgba(192,132,252,0.85)"
+  background: "linear-gradient(90deg, #7c3aed, #c084fc)",
+  boxShadow: "0 0 18px rgba(192,132,252,0.75)"
 };
 
 const cardFooterStyle = {
-  position: "relative",
-  zIndex: 2,
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
   color: "#8f8a9f",
   fontSize: "13px",
-  marginTop: "18px"
-};
-
-const poolLabelStyle = {
-  display: "block",
-  color: "#6f6a7f",
-  fontSize: "10px",
-  fontWeight: "900",
-  marginBottom: "3px"
-};
-
-const openButtonStyle = {
-  background: "rgba(168,85,247,0.13)",
-  border: "1px solid rgba(192,132,252,0.2)",
-  color: "#e9d5ff",
-  padding: "10px 12px",
-  borderRadius: "13px",
-  cursor: "pointer",
-  fontWeight: "900"
+  marginTop: "16px"
 };
